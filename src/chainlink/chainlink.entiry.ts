@@ -6,7 +6,7 @@ export class Prices {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;
 
-  @Column({ name: 'token_name', type: 'varchar', length: 50, default: '', nullable: true })
+  @Column({ name: 'token_name', type: 'varchar', length: 20, default: '', nullable: true })
   tokenName: string;
 
   @Column({ name: 'round_id', type: 'varchar', length: 50, default: '', nullable: true })

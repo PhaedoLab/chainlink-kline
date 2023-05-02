@@ -14,7 +14,9 @@ export class ChainlinkService {
   constructor(
     @InjectRepository(Prices)
     private pricesRepository: Repository<Prices>,
-  ) {}
+  ) {
+    this.intervalRunning = false;
+  }
 
   findAll(): Promise<Prices[]> {
     return this.pricesRepository.find();
