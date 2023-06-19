@@ -1,5 +1,17 @@
+# Basic Consensus
+## 1. 返回数据格式
+**返回数据最外层的格式如下：**
+
+| 参数名 | 类型               | 说明                        |
+| ------ | ------------------ | --------------------------- |
+| code   | Integer            | 0为成功，-1为失败               |
+| data   | **Item**(Object) | 请求数据 |
+| message   | String             | 返回值说明                      |
+
+接下来的api接口返回数据格式中都会自动忽略最外层的数据格式，只介绍data数据。
+
 # Jungle BackEnd
-## Jungle Community
+## 1. Jungle Community
 
 ### URL
 
@@ -17,14 +29,6 @@ GET方式，须带上http请求头
 
 
 ### 返回值
-**数据格式**
-请求成功则返回json格式串，格式如下
-
-| 参数名 | 类型               | 说明                        |
-| ------ | ------------------ | --------------------------- |
-| code   | Integer            | 0为成功，-1为失败               |
-| data   | **Item**(Object) | 请求数据 |
-| message   | String             | 返回值说明                      |
 
 **Item**(Object)数据格式
 
@@ -48,7 +52,7 @@ GET方式，须带上http请求头
 }
 ```
 
-## Jungle DEFI
+## 2. Jungle DEFI
 
 ### URL
 
@@ -66,15 +70,6 @@ GET方式，须带上http请求头
 
 
 ### 返回值
-**数据格式**
-请求成功则返回json格式串，格式如下
-
-| 参数名 | 类型               | 说明                        |
-| ------ | ------------------ | --------------------------- |
-| code   | Integer            | 0为成功，-1为失败               |
-| data   | **Item**(Object) | 请求数据 |
-| message   | String             | 返回值说明                      |
-
 **Item**(Object)数据格式
 
 | 参数名     | 必选 | 类型          | 说明                                               |
@@ -82,7 +77,7 @@ GET方式，须带上http请求头
 | usdc   |**ItemU**(Object) | 操作USDC的url |
 | eth  | **ItemE**(Object) | 操作ETH的url |
 
-**Item**(Object)数据格式
+**ItemU**(Object)数据格式
 
 | 参数名     | 必选 | 类型          | 说明                                               |
 | ---------- | ---- | ----------- | -------------------------------------------------- |
@@ -90,7 +85,7 @@ GET方式，须带上http请求头
 | buy  | String | buy的url |
 | bridge  | String | bridge的url |
 
-**Item**(Object)数据格式
+**ItemE**(Object)数据格式
 
 | 参数名     | 必选 | 类型          | 说明                                               |
 | ---------- | ---- | ----------- | -------------------------------------------------- |
@@ -119,7 +114,7 @@ GET方式，须带上http请求头
 ```
 
 # Jungle The Graph
-## Jungle Total Locked
+## 1. Jungle Total Locked
 
 ### URL
 - http://ip:port/api/v1/graph/tlocked
@@ -136,14 +131,9 @@ GET方式，须带上http请求头
 
 
 ### 返回值
-**数据格式**
-请求成功则返回json格式串，格式如下
-
-| 参数名 | 类型               | 说明                        |
-| ------ | ------------------ | --------------------------- |
-| code   | Integer            | 0为成功，-1为失败               |
-| data   | Number | 请求数据 |
-| message   | String             | 返回值说明                      |
+| 参数名     | 必选 | 类型          | 说明                                               |
+| ---------- | ---- | ----------- | -------------------------------------------------- |
+| value   |Number | Total Locked |
 
 **返回样例**
 
@@ -155,7 +145,7 @@ GET方式，须带上http请求头
 }
 ```
 
-## Jungle Trading Volume
+## 2. Jungle Trading Volume
 
 ### URL
 - http://ip:port/api/v1/graph/tvolume
@@ -172,14 +162,9 @@ GET方式，须带上http请求头
 
 
 ### 返回值
-**数据格式**
-请求成功则返回json格式串，格式如下
-
-| 参数名 | 类型               | 说明                        |
-| ------ | ------------------ | --------------------------- |
-| code   | Integer            | 0为成功，-1为失败               |
-| data   | Number | 请求数据 |
-| message   | String             | 返回值说明                      |
+| 参数名     | 必选 | 类型          | 说明                                               |
+| ---------- | ---- | ----------- | -------------------------------------------------- |
+| value   |Number | Trading Volume |
 
 **返回样例**
 
@@ -191,7 +176,7 @@ GET方式，须带上http请求头
 }
 ```
 
-## Jungle 24h Trading Volume
+## 3. Jungle 24h Trading Volume
 
 ### URL
 - http://ip:port/api/v1/graph/volume24
@@ -208,14 +193,9 @@ GET方式，须带上http请求头
 
 
 ### 返回值
-**数据格式**
-请求成功则返回json格式串，格式如下
-
-| 参数名 | 类型               | 说明                        |
-| ------ | ------------------ | --------------------------- |
-| code   | Integer            | 0为成功，-1为失败               |
-| data   | Number | 请求数据 |
-| message   | String             | 返回值说明                      |
+| 参数名     | 必选 | 类型          | 说明                                               |
+| ---------- | ---- | ----------- | -------------------------------------------------- |
+| value   |Number | 24h Total Locked |
 
 **返回样例**
 
@@ -227,7 +207,7 @@ GET方式，须带上http请求头
 }
 ```
 
-## Jungle Total Trading Fee
+## 4. Jungle Total Trading Fee
 
 ### URL
 - http://ip:port/api/v1/graph/ttradingfee
@@ -244,14 +224,9 @@ GET方式，须带上http请求头
 
 
 ### 返回值
-**数据格式**
-请求成功则返回json格式串，格式如下
-
-| 参数名 | 类型               | 说明                        |
-| ------ | ------------------ | --------------------------- |
-| code   | Integer            | 0为成功，-1为失败               |
-| data   | Number | 请求数据 |
-| message   | String             | 返回值说明                      |
+| 参数名     | 必选 | 类型          | 说明                                               |
+| ---------- | ---- | ----------- | -------------------------------------------------- |
+| value   |Number | Total Trading Fee |
 
 **返回样例**
 
@@ -263,7 +238,7 @@ GET方式，须带上http请求头
 }
 ```
 
-## Jungle Total Users
+## 5. Jungle Total Users
 
 ### URL
 - http://ip:port/api/v1/graph/tusers
@@ -280,14 +255,9 @@ GET方式，须带上http请求头
 
 
 ### 返回值
-**数据格式**
-请求成功则返回json格式串，格式如下
-
-| 参数名 | 类型               | 说明                        |
-| ------ | ------------------ | --------------------------- |
-| code   | Integer            | 0为成功，-1为失败               |
-| data   | Number | 请求数据 |
-| message   | String             | 返回值说明                      |
+| 参数名     | 必选 | 类型          | 说明                                               |
+| ---------- | ---- | ----------- | -------------------------------------------------- |
+| value   |Number | Total Users |
 
 **返回样例**
 
