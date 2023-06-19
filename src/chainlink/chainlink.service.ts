@@ -2,59 +2,32 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { contractBTC } from './chainlink.config';
-import { Prices } from './chainlink.entiry';
+import { contractBTC, contractETH, contractLINK } from './chainlink.config';
+import { Period, Prices } from './chainlink.entiry';
 import { Repository, InsertResult } from 'typeorm';
+import { ethers } from 'ethers';
 
 @Injectable()
 export class ChainlinkService {
   private readonly logger = new Logger(ChainlinkService.name);
   private intervalRunning: boolean;
+  private lastestPrice: Map<string, Prices>;
+  private tokenNames: Array<string>;
 
   constructor(
     @InjectRepository(Prices)
     private pricesRepository: Repository<Prices>,
+    @InjectRepository(Period)
+    private periodRepository: Repository<Period>,
   ) {
     this.intervalRunning = false;
-  }
-
-  findAll(): Promise<Prices[]> {
-    return this.pricesRepository.find();
-  }
-
-  findOne(_id: number): Promise<Prices | null> {
-    return this.pricesRepository
-    .createQueryBuilder('user')
-    .where({id: _id})
-    .getOne();
-  }
-
-  findOne2(id: number): Promise<Prices | null> {
-    return this.pricesRepository.findOne(
-      { where: { id }}
-    );
-  }
-
-  insertMany(prices: Prices[]): Promise<InsertResult> {
-    return this.pricesRepository.insert(prices);
-  }
-
-  saveData(round: any, tokenName: string) {
-    console.log(round.roundId.toString());
-    // console.log(round.answer.toString());
-    // console.log(round.startedAt.toString());
-    // console.log(round.updatedAt.toString());
-    // console.log(round.answeredInRound);
-    // console.log(new Date(round.startedAt.toNumber() * 1000));
-    // console.log(new Date(round.updatedAt.toNumber() * 1000));
-    const price = new Prices();
-    price.tokenName = tokenName;
-    price.roundId = round.roundId.toString();
-    price.answer = round.answer.toString();
-    price.startedAt = round.startedAt.toString();
-    price.updatedAt = round.updatedAt.toString();
-    price.answeredInRound = round.answeredInRound.toString();
-    this.insertMany([price]);
+    this.tokenNames = ['BTC', 'ETH', 'LINK'];
+    this.lastestPrice = new Map<string, Prices>();
+    for(const tokenName of this.tokenNames) {
+      this.findLastestPrice(tokenName).then((price: Prices) => {
+        this.lastestPrice.set(tokenName, price);
+      });
+    }
   }
 
   @Interval(10000)
@@ -65,36 +38,509 @@ export class ChainlinkService {
     }
     this.intervalRunning = true;
     // ============= service start ============== //
-    await this.callChainlinkPrices();
+    for(const tokenName of this.tokenNames) {
+      try {
+        await this.callChainlinkPrices(tokenName);
+      } catch(err) {
+        this.logger.log(err);
+      }
+    }
     // =============  service end  ============== //
     this.intervalRunning = false;
   }
 
-  async callChainlinkPrices() {
-    const lastRound = await contractBTC.latestRoundData();
+  private async callChainlinkPrices(tokenName: string) {
+    let contract: ethers.Contract;
+    if(tokenName === 'BTC') {
+      contract = contractBTC;
+    } else if(tokenName === 'ETH') {
+      contract = contractETH;
+    } else if(tokenName === 'LINK') {
+      contract = contractLINK;
+    } else {
+      throw "Bad Token Name.";
+    }
+    this.logger.log(`Coming into ${tokenName}`);
+    const lastRound = await contract.latestRoundData();
+    
     const roundId = BigInt(lastRound.roundId);
     const bias = BigInt("0xFFFFFFFFFFFFFFFF");
+    this.logger.log(`Coming into ${tokenName}, with ${lastRound}`);
   
     const phrase = Number(roundId >> BigInt(64));
     const aggRoundId = Number(roundId & bias);
+    // this.logger.log(`${phrase}, ${aggRoundId}, ${tokenName}, '\n'`);
 
     // get start roundId from database
     let roundDatas = [];
-    for(let i = aggRoundId; i > 0; i--) {
+    const lastPrice = this.lastestPrice.get(tokenName);
+    const price = this._buildData(lastRound, tokenName);
+    // only save the lastest price
+    if(!lastPrice) {
+      this.logger.log(`First price inserted.`);
+      this.insertManyPrices([price]);
+      // update price after this round
+      this.lastestPrice.set(tokenName, price);
+      return;
+    }
+    
+    const startAggRoundId = Number(BigInt(lastPrice.roundId) & bias);
+    if(startAggRoundId >= aggRoundId) {
+      this.logger.log(`${tokenName} startAggRoundId is bigger than aggRoundId, Jump Out.`);
+      return;
+    }
+    for(let i = startAggRoundId + 1; i <= aggRoundId; i++) {
       const tmpRoundId = (BigInt(phrase) << BigInt(64)) | BigInt(i);
-      const res = contractBTC.getRoundData(tmpRoundId);
+      const res = contract.getRoundData(tmpRoundId);
       roundDatas.push(res);
       if(roundDatas.length === 10) {
         const datasRes = await Promise.all(roundDatas);
         for(const data of datasRes) {
-          // printData(data);
-          // console.log(``);
-          this.saveData(data, 'BTC');
+          this.saveData(data, tokenName);
+          await this._buildAllCandles(tokenName, data.startedAt);
+          this.lastestPrice.set(tokenName, this._buildData(data, tokenName));
         }
         roundDatas = [];
-        console.log(i, new Date());
+        // this.logger.log(`${i}, ${new Date()}`);
       }
     }
+    if(roundDatas.length !== 0) {
+      const datasRes = await Promise.all(roundDatas);
+      for(const data of datasRes) {
+        this.saveData(data, tokenName);
+        await this._buildAllCandles(tokenName, data.startedAt);
+        this.lastestPrice.set(tokenName, this._buildData(data, tokenName));
+      }
+      roundDatas = [];
+    }
 
+    // update price after this round
+    this.lastestPrice.set(tokenName, price);
+
+    this.logger.log(`Coming out ${tokenName}`);
+  }
+
+  // ========================= //
+  // builders                  //
+  // ========================= //
+
+  private _buildData(round: any, tokenName: string): Prices {
+    const price = new Prices();
+    price.tokenName = tokenName;
+    price.roundId = round.roundId.toString();
+    price.answer = round.answer.toString();
+    price.startedAt = round.startedAt.toString();
+    price.updatedAt = round.updatedAt.toString();
+    price.answeredInRound = round.answeredInRound.toString();
+
+    const phrase = Number(BigInt(round.roundId) >> BigInt(64));
+    const bias = BigInt("0xFFFFFFFFFFFFFFFF");
+    const aggRoundId = BigInt(round.roundId) & bias;
+    price.phrase = phrase.toString();
+    price.aggRoundId = aggRoundId.toString();
+    return price;
+  }
+
+  private _buildPeriod(position: number[], timestamp: number, 
+      pd: string, tokenName: string): Period {
+    const period = new Period();
+    period.o = position[0];
+    period.c = position[1];
+    period.h = position[2];
+    period.l = position[3];
+    period.t = timestamp.toString();
+    period.period = pd;
+    period.tokenName = tokenName;
+    return period;
+  }
+
+  // ========================= //
+  // mysql utils for prices    //
+  // ========================= //
+
+  findOne(_id: number): Promise<Prices | null> {
+    return this.pricesRepository
+      .createQueryBuilder('price')
+      .where(`price.`)
+      .getOne();
+  }
+
+  findBundlePrices(tokenName: string, startAt: number, endAt: number): Promise<Prices[]> {
+    return this.pricesRepository
+      .createQueryBuilder('price')
+      .where(`price.token_name = :tokenName AND price.started_at >= :startAt AND price.started_at < :endAt`, 
+        { tokenName: tokenName, startAt: startAt, endAt: endAt })
+      .orderBy('price.id', 'ASC')
+      .getMany();
+  }
+
+  findLastestPrice(tokenName: string): Promise<Prices | null> {
+    return this.pricesRepository
+      .createQueryBuilder('price')
+      .where("price.token_name = :tokenName", { tokenName: tokenName })
+      .orderBy('price.id', 'DESC')
+      .getOne();
+  }
+
+  insertManyPrices(prices: Prices[]): Promise<InsertResult> {
+    return this.pricesRepository.insert(prices);
+  }
+
+  saveData(round: any, tokenName: string) {
+    const prices = [this._buildData(round, tokenName)];
+    this.insertManyPrices(prices);
+  }
+
+  // ========================= //
+  // mysql utils for period    //
+  // ========================= //
+
+  findBundleCandles(tokenName: string, period: string, startAt: number, endAt: number): Promise<Period[]> {
+    return this.periodRepository
+      .createQueryBuilder('period')
+      .where(`period.token_name = :tokenName AND period.period = :period AND period.t >= :startAt AND period.t < :endAt`, 
+        { tokenName: tokenName, period, startAt: startAt, endAt: endAt })
+      .orderBy('period.t', 'ASC')
+      .getMany();
+  }
+
+  findLastestCandles(tokenName: string, period: string, limit: number): Promise<Period[]> {
+    return this.periodRepository
+      .createQueryBuilder('period')
+      .where(`period.token_name = :tokenName AND period.period = :period`, 
+        { tokenName: tokenName, period: period })
+      .orderBy('period.t', 'DESC')
+      .limit(limit)
+      .getMany();
+  }
+
+  findOneCandle(tokenName: string, period: string, timestamp: number): Promise<Period> {
+    return this.periodRepository
+      .createQueryBuilder('period')
+      .where(`period.token_name = :tokenName AND period.period = :period AND period.t =:t`, 
+        { tokenName: tokenName, period: period, t: timestamp})
+      .getOne();
+  }
+
+  insertManyCandles(periods: Period[]): Promise<InsertResult> {
+    return this.periodRepository.insert(periods);
+  }
+
+  // ========================= //
+  //      build candles        //
+  // ========================= //
+
+  async _buildAllCandles(tokenName: string, currentTime: number) {
+    this.logger.log(`_buildAllCandles: ${tokenName}`);
+    const price = this.lastestPrice.get(tokenName);
+    const lastTime = Number(price.startedAt);
+    // whether currentTime is valid
+    const lastDate = new Date(lastTime * 1000);
+    const currentDate = new Date(currentTime * 1000);
+
+    await this._build5MCandles(tokenName, lastDate, currentDate);
+    await this._build15MCandles(tokenName, lastDate, currentDate);
+    await this._build1HCandles(tokenName, lastDate, currentDate);
+    await this._build4HCandles(tokenName, lastDate, currentDate);
+    await this._build1DCandles(tokenName, lastDate, currentDate);
+    this.logger.log(`_buildAllCandles Done: ${tokenName}`);
+  }
+
+  async _build5MCandles(tokenName: string, lastDate: Date, currentDate: Date) {
+    const lastMin = lastDate.getMinutes();
+    const currentMin = currentDate.getMinutes(); // (0-59)
+
+    let start: number, end: number, timestamp: number;
+    const year = lastDate.getFullYear(); // (yyyy)
+    const month = lastDate.getMonth(); //  (0-11)
+    const day = lastDate.getDate(); // (1-31)
+    const hour = lastDate.getHours(); // (0-23)
+    if(lastMin >= 0 && lastMin < 5 && currentMin >= 5 && currentMin < 10) {
+      // 5m  1 <= time < 6
+      const endDate = new Date(year, month, day, hour, 5, 0);
+      end = endDate.getTime();
+    } else if(lastMin >= 5 && lastMin < 10 && currentMin >= 10 && currentMin < 15) {
+      // 5m
+      const endData = new Date(year, month, day, hour, 10, 0);
+      end = endData.getTime();
+    } else if( lastMin >= 10 && lastMin < 15 && currentMin >= 15 && currentMin < 20) {
+      // 5m 15m
+      const endData = new Date(year, month, day, hour, 15, 0);
+      end = endData.getTime();
+    } else if(lastMin >= 15 && lastMin < 20 && currentMin >= 20 && currentMin < 25) {
+      // 5m
+      const endData = new Date(year, month, day, hour, 20, 0);
+      end = endData.getTime();
+    } else if(lastMin >= 20 && lastMin < 25 && currentMin >= 25 && currentMin < 30) {
+      // 5m
+      const endData = new Date(year, month, day, hour, 25, 0);
+      end = endData.getTime();
+    } else if(lastMin >= 25 && lastMin < 30 && currentMin >= 30 && currentMin < 35) {
+      // 5m 15m
+      const endData = new Date(year, month, day, hour, 30, 0);
+      end = endData.getTime();
+    } else if(lastMin >= 30 && lastMin < 35 && currentMin >= 35 && currentMin < 40) {
+      // 5m
+      const endData = new Date(year, month, day, hour, 35, 0);
+      end = endData.getTime();
+    } else if(lastMin >= 35 && lastMin < 40 && currentMin >= 40 && currentMin < 45) {
+      // 5m
+      const endData = new Date(year, month, day, hour, 40, 0);
+      end = endData.getTime();
+    } else if(lastMin >= 40 && lastMin < 45 && currentMin >= 45 && currentMin < 50) {
+      // 5m 15m
+      const endData = new Date(year, month, day, hour, 45, 0);
+      end = endData.getTime();
+    } else if(lastMin >= 45 && lastMin < 50 && currentMin >= 50 && currentMin < 55) {
+      // 5m
+      const endData = new Date(year, month, day, hour, 50, 0);
+      end = endData.getTime();
+    } else if(lastMin >= 50 && lastMin < 55 && currentMin >= 55 && currentMin < 60) {
+      // 5m
+      const endData = new Date(year, month, day, hour, 55, 0);
+      end = endData.getTime();
+    } else if(lastMin >= 55 && lastMin < 60 && currentMin >= 0 && currentMin < 5) {
+      // 5m 15m 1h 4h 1d
+      const endData = new Date(year, month, day, hour + 1, 0, 0);
+      end = endData.getTime();
+    } else {
+      // Not applicable to any situation
+      console.log(`Don't fit any ${tokenName} 5 intervals. ${lastDate}, ${currentDate}`);
+      return;
+    }
+    console.log(`Fit ${tokenName} 5 intervals. ${lastDate}, ${currentDate}`);
+    start = end - (5 * 60 * 1000);
+    timestamp = start;
+    
+    const prices = await this.findBundlePrices(tokenName, Math.round(start / 1000), Math.round(end / 1000));
+    if(prices.length === 0) {
+      this.logger.log(`Prices length is zero.`);
+      return;
+    }
+    const lastCandle = await this.findOneCandle(tokenName, '5m', start - (5 * 60 * 1000));
+    const position = this._get5MCandlePosition(prices, lastCandle);
+    // insert position
+    const period = this._buildPeriod(position, timestamp, '5m', tokenName);
+    this.insertManyCandles([period]);
+    this.logger.log(`insert into ${period}`);
+    return {
+      start, end, timestamp
+    }
+  }
+
+  async _build15MCandles(tokenName: string, lastDate: Date, currentDate: Date) {
+    const lastMin = lastDate.getMinutes();
+    const currentMin = currentDate.getMinutes();
+
+    let start: number, end: number, timestamp: number;
+    const year = lastDate.getFullYear();
+    const month = lastDate.getMonth();
+    const day = lastDate.getDate();
+    const hour = lastDate.getHours();
+    if( lastMin >= 10 && lastMin < 15 && currentMin >= 15 && currentMin < 20) {
+      // 1 <= time < 16
+      const endData = new Date(year, month, day, hour, 15, 0);
+      end = endData.getTime();
+    } else if(lastMin >= 25 && lastMin < 30 && currentMin >= 30 && currentMin < 35) {
+      // 16 <= time < 31
+      const endData = new Date(year, month, day, hour, 30, 0);
+      end = endData.getTime();
+    } else if(lastMin >= 40 && lastMin < 45 && currentMin >= 45 && currentMin < 50) {
+      // 31 <= time < 46
+      const endData = new Date(year, month, day, hour, 45, 0);
+      end = endData.getTime();
+    } else if(lastMin >= 55 && lastMin < 60 && currentMin >= 0 && currentMin < 5) {
+      //  46 <= time < 60 || time < 1
+      const endData = new Date(year, month, day, hour + 1, 0, 0);
+      end = endData.getTime();
+    } else {
+      console.log(`Don't fit any 15 intervals. ${currentDate}`);
+      // Not applicable to any situation
+      return;
+    }
+    start = end - (15 * 60 * 1000);
+    timestamp = start;
+
+    const candles = await this.findBundleCandles(tokenName, '5m', start, end);
+    if(candles.length === 0) {
+      this.logger.log(`Candles length is zero.`);
+      return;
+    }
+    const position = this._getLargeCandlePosition(candles);
+    // insert position
+    const period = this._buildPeriod(position, timestamp, '15m', tokenName);
+    this.insertManyCandles([period]);
+    return {
+      start, end, timestamp
+    }
+  }
+
+  async _build1HCandles(tokenName: string, lastDate: Date, currentDate: Date) {
+    const lastMin = lastDate.getMinutes();
+    const currentMin = currentDate.getMinutes();
+
+    let start: number, end: number, timestamp: number;
+    const year = lastDate.getFullYear();
+    const month = lastDate.getMonth();
+    const day = lastDate.getDate();
+    const hour = lastDate.getHours();
+    if(lastMin >= 55 && lastMin < 60 && currentMin >= 0 && currentMin < 5) {
+      // 1h
+      const endData = new Date(year, month, day, currentDate.getHours(), 0, 0);
+      end = endData.getTime();
+    } else {
+      console.log(`Don't fit any 1h intervals. ${currentDate}`);
+      // Not applicable to any situation
+      return;
+    }
+    start = end - (60 * 60 * 1000);
+    timestamp = start;
+
+    const candles = await this.findBundleCandles(tokenName, '15m', start, end);
+    const position = this._getLargeCandlePosition(candles);
+    // insert position
+    const period = this._buildPeriod(position, timestamp, '1h', tokenName);
+    this.insertManyCandles([period]);
+    return {
+      start, end, timestamp
+    }
+  }
+  
+  async _build4HCandles(tokenName: string, lastDate: Date, currentDate: Date) {
+    const lastMin = lastDate.getMinutes();
+    const currentMin = currentDate.getMinutes();
+
+    let start: number, end: number, timestamp: number;
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+    const currentDay = currentDate.getDate();
+    const currentHour = currentDate.getHours();
+    if(lastMin >= 55 && lastMin < 60 && currentMin >= 0 && currentMin < 5) {
+      if(!(currentHour === 0 ||
+        currentHour === 4 ||
+        currentHour === 8 ||
+        currentHour === 12 ||
+        currentHour === 16 ||
+        currentHour === 20)) {
+        return;
+      }
+      // 4h
+      const endData = new Date(currentYear, currentMonth, currentDay, currentHour, 0, 0);
+      end = endData.getTime();
+    } else {
+      console.log(`Don't fit any 4h intervals. ${currentDate}`);
+      // Not applicable to any situation
+      return;
+    }
+    start = end - (4 * 60 * 60 * 1000);
+    timestamp = start;
+    
+    const candles = await this.findBundleCandles(tokenName, '1h', start, end);
+    const position = this._getLargeCandlePosition(candles);
+    // insert position
+    const period = this._buildPeriod(position, timestamp, '4H', tokenName);
+    this.insertManyCandles([period]);
+    return {
+      start, end, timestamp
+    }
+  }
+
+  async _build1DCandles(tokenName: string, lastDate: Date, currentDate: Date) {
+    const lastMin = lastDate.getMinutes();
+    const currentMin = currentDate.getMinutes();
+
+    let start: number, end: number, timestamp: number;
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+    const currentDay = currentDate.getDate();
+    const currentHour = currentDate.getHours();
+    
+    if(lastMin >= 55 && lastMin < 60 && currentMin >= 0 && currentMin < 5) {
+      // 1d
+      if(!(currentHour === 0))  {
+        return;
+      }
+      const endData = new Date(currentYear, currentMonth, currentDay, 0, 0, 0);
+      end = endData.getTime();
+    } else {
+      console.log(`Don't fit any 1d intervals. ${currentDate}`);
+      // Not applicable to any situation
+      return;
+    }
+    start = end - (24 * 60 * 60 * 1000);
+    timestamp = start;
+    
+    const candles = await this.findBundleCandles(tokenName, '4h', start, end);
+    const position = this._getLargeCandlePosition(candles);
+    // insert position
+    const period = this._buildPeriod(position, timestamp, '1D', tokenName);
+    this.insertManyCandles([period]);
+    return {
+      start, end, timestamp
+    }
+  }
+
+  _get5MCandlePosition(prices: Prices[], lastCandle: Period): number[] {
+    let realPrices = prices.map((item, index, array) => {
+      return Number(item.answer);
+    });
+
+    realPrices = lastCandle ? [lastCandle.c, ...realPrices]: realPrices;
+
+    const o = realPrices[0];
+    const c = realPrices[realPrices.length - 1];
+    const h = realPrices.reduce((a, b) => Math.max(a, b));
+    const l = realPrices.reduce((a, b) => Math.min(a, b));
+    return [o, c, h, l];
+  }
+
+  _getLargeCandlePosition(periods: Period[]): number[] {
+    if(periods.length === 0) {
+      return [];
+    }
+    const allH = periods.map((item, index, array) => {
+      return item.h;
+    });
+    const allL = periods.map((item, index, array) => {
+      return item.l;
+    });
+
+    const o = periods[0].o;
+    const c = periods[periods.length - 1].c;
+    const h = allH.reduce((a, b) => Math.max(a, b));
+    const l = allL.reduce((a, b) => Math.min(a, b));
+    return [o, c, h, l];
+  }
+  
+  // ========================= //
+  // functions for controller  //
+  // ========================= //
+
+  async getLastestPrice(tokenName: string) {
+    const price = await this.findLastestPrice(tokenName);
+    return {
+      'token': tokenName,
+      'price': price.answer,
+      'updateAt': new Date().getTime(),
+    };
+  }
+
+  async getCandles(tokenName: string, period: string, limit: number) {
+    const candles = await this.findLastestCandles(tokenName, period, limit);
+    const prices = candles.map((candle: Period) => {
+      const obj = {
+        'o': candle.o,
+        'c': candle.c,
+        'h': candle.h,
+        'l': candle.l,
+        't': candle.t,
+      };
+      return obj;
+    });
+    return {
+      'prices': prices,
+      "period": period,
+      "updatedAt": new Date().getTime()
+    };
   }
 }

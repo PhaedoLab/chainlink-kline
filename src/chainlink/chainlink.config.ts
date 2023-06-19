@@ -55,4 +55,8 @@ const polygonMainnet = "https://polygon-mainnet.g.alchemy.com/v2/uOIGkW4vPxip08y
 const provider = new ethers.providers.JsonRpcProvider(polygonMainnet);
 
 const addrBTC = "0xc907E116054Ad103354f2D350FD2514433D57F6f"; // BTC / USD
+const addrETH = "0xF9680D99D6C9589e2a93a78A04A279e509205945"; // ETH / USD
+const addrLINK = "0xd9FFdb71EbE7496cC440152d43986Aae0AB76665"; // LINK / USD
 export const contractBTC = new ethers.Contract(addrBTC, aggregatorV3InterfaceABI, provider);
+export const contractETH = new ethers.Contract(addrETH, aggregatorV3InterfaceABI, provider);
+export const contractLINK = new ethers.Contract(addrLINK, aggregatorV3InterfaceABI, provider);

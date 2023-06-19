@@ -1,13 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ChainlinkService } from './chainlink.service';
-import { ChainlinkController } from './chainlink.controller';
-import { Prices } from './chainlink.entiry';
+import { Prices, Period } from './chainlink.entiry';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Prices])],
+  imports: [TypeOrmModule.forFeature([Prices, Period])],
   exports: [TypeOrmModule],
-  providers: [ChainlinkService],
-  controllers: [ChainlinkController],
+  providers: [],
+  controllers: [],
 })
 export class ChainlinkModule {}
