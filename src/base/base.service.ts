@@ -14,8 +14,9 @@ export class BaseService {
     }
   }
 
-  defi() {
+  defi(chain: string) {
     return {
+      chain,
       usdc: {
         swap: 'https://uniswap.org/',
         buy: 'https://uniswap.org/',

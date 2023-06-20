@@ -8,6 +8,6 @@ async function bootstrap() {
   });
   // app.useGlobalInterceptors(new LoggingInterceptor());
   app.enableCors();
-  await app.listen(3002);
+  await app.listen(3000);
 }
 bootstrap();

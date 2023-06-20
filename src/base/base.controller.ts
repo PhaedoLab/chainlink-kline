@@ -23,8 +23,12 @@ export class BaseController {
    * ETC: curl 'http://127.0.0.1:3002/api/base/defi'
    */
     @Get('defi')
-    async defi(): Promise<any> {
-      const defi = this.baseService.defi();
+    async defi(@Query('chain') chain: string): Promise<any> {
+      this.logger.log(chain);
+      if(!chain) {
+        chain = 'arb';
+      }
+      const defi = this.baseService.defi(chain);
       return defi;
     }
 }
