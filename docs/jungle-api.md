@@ -276,7 +276,7 @@ GET方式，须带上http请求头
 ## 6. Jungle Ledger Trading Volume
 
 ### URL
-- http://ip:port/api/v1/graph/tvolume
+- http://ip:port/api/v1/graph/lvol24
 
 ### 请求格式
 
@@ -314,7 +314,7 @@ GET方式，须带上http请求头
 ## 7. Jungle Ledger 24h Trading Volume
 
 ### URL
-- http://ip:port/api/v1/graph/volume24
+- http://ip:port/api/v1/graph/lvols
 
 ### 请求格式
 
