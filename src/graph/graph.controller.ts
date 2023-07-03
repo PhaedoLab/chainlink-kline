@@ -52,15 +52,18 @@ export class GraphController {
   }
 
   @Get('trades')
-  async trades(@Query('num') num, @Query('ledger') ledger): Promise<any> {
+  async trades(@Query('num') num, @Query('ledger') ledger, @Query('lastid') lastid): Promise<any> {
     if(!num) {
       num = 10
     }
     if(!ledger) {
       ledger = 0;
     }
+    if(!lastid) {
+      lastid = "";
+    }
     this.logger.log(`Number: ${num}, Ledger: ${ledger}.`);
-    const trades = await this.graphService.getHistory(ledger, num);
+    const trades = await this.graphService.getHistory(ledger, num, lastid);
     return {
       trades,
     };

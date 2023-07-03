@@ -371,6 +371,7 @@ GET方式，须带上http请求头
 | ---------- |  ----------- | -------------------------------------------------- |
 | ledger   |Number | ledger id |
 | num   |Number | lastest date number |
+| lastid   |string | last id of last batch |
 
 ### 返回值
 | 参数名     |  类型          | 说明                                               |

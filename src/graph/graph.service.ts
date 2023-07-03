@@ -20,10 +20,10 @@ export class GraphService {
     return `${year}-${month}-${day}#${hour}`;
   }
 
-  async getHistory(ledger: number, limit: number, ) {
+  async getHistory(ledger: number, limit: number, lastID: string) {
     const myQuery = `
       query pairs {
-        trades(orderBy: timestamp, orderDirection: desc, first: ${limit}, where: { ledger: ${ledger} }) {
+        trades(orderBy: timestamp, orderDirection: desc, first: ${limit}, where: { ledger: ${ledger}, id_gt: ${lastID} }) {
           id
           account
           ledger
@@ -37,7 +37,6 @@ export class GraphService {
     
     console.log(myQuery);
     const result = await execute(myQuery, {})
-    console.log(result);
     const trades = result.data?.trades;
     return trades;
   }
