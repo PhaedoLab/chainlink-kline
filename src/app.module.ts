@@ -31,7 +31,7 @@ import { LoggingInterceptor, TransformInterceptor } from './app.interceptors';
       synchronize: true,
     }),
     BaseModule,
-    GraphModule,
+    GraphModule
   ],
   controllers: [AppController, ChainlinkController, BaseController, GraphController],
   providers: [AppService, ChainlinkService, BaseService, GraphService,

@@ -1,0 +1,6 @@
+# .graphclientrc.yml
+sources:
+  - name: jungle
+    handler:
+      graphql:
+        endpoint: https://api.thegraph.com/subgraphs/name/phaedolab/jungle-subgraph

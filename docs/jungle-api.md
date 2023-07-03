@@ -271,3 +271,79 @@ GET方式，须带上http请求头
     "message":"ok"
 }
 ```
+
+
+## 6. Jungle Ledger Trading Volume
+
+### URL
+- http://ip:port/api/v1/graph/tvolume
+
+### 请求格式
+
+GET方式，须带上http请求头
+
+**http请求头**
+
+| HTTP header  | 必选 | 说明             |
+| ------------ | ---- | ---------------- |
+| Content-Type | 是   | application/json |
+
+**请求参数**
+
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| ledger   |Number | ledger id |
+
+### 返回值
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| value   |Number | Trading Volume |
+
+**返回样例**
+
+```
+{
+    "data": {
+        "value": 123
+    }
+    "code":200,
+    "message":"ok"
+}
+```
+
+## 7. Jungle Ledger 24h Trading Volume
+
+### URL
+- http://ip:port/api/v1/graph/volume24
+
+### 请求格式
+
+GET方式，须带上http请求头
+
+**http请求头**
+
+| HTTP header  | 必选 | 说明             |
+| ------------ | ---- | ---------------- |
+| Content-Type | 是   | application/json |
+
+**请求参数**
+
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| ledger   |Number | ledger id |
+
+### 返回值
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| value   |Number | 24H Trading Volume |
+
+**返回样例**
+
+```
+{
+    "data": {
+        "value": 123
+    },
+    "code":200,
+    "message":"ok"
+}

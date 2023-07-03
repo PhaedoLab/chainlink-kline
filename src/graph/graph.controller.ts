@@ -1,4 +1,4 @@
-import { Controller, Get, Logger, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Logger, Query, UseInterceptors } from '@nestjs/common';
 import { GraphService } from './graph.service';
 
 @Controller('api/v1/graph')
@@ -48,6 +48,46 @@ export class GraphController {
     const data = 864;
     return {
       value: data,
+    };
+  }
+
+  @Get('trades')
+  async trades(@Query('num') num, @Query('ledger') ledger): Promise<any> {
+    if(!num) {
+      num = 10
+    }
+    if(!ledger) {
+      ledger = 0;
+    }
+    this.logger.log(`Number: ${num}, Ledger: ${ledger}.`);
+    const trades = await this.graphService.getHistory(num, ledger);
+    return {
+      trades,
+    };
+  }
+
+  @Get('lvol24')
+  async lvol24(@Query('ledger') ledger): Promise<any> {
+    if(!ledger) {
+      ledger = 0;
+    }
+    this.logger.log(`Ledger: ${ledger}.`);
+    // const vols = await this.graphService.getLast24H(ledger);
+    const vols = await this.graphService.getLVols(ledger);
+    return {
+      value: vols
+    };
+  }
+
+  @Get('lvols')
+  async lvols(@Query('ledger') ledger): Promise<any> {
+    if(!ledger) {
+      ledger = 0;
+    }
+    this.logger.log(`Ledger: ${ledger}.`);
+    const vols = await this.graphService.getLVols(ledger);
+    return {
+      value: vols
     };
   }
 }
