@@ -34,8 +34,10 @@ export class GraphService {
         }
       }
     `
-
+    
+    console.log(myQuery);
     const result = await execute(myQuery, {})
+    console.log(result);
     const trades = result.data?.trades;
     return trades;
   }

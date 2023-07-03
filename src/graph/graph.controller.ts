@@ -60,7 +60,7 @@ export class GraphController {
       ledger = 0;
     }
     this.logger.log(`Number: ${num}, Ledger: ${ledger}.`);
-    const trades = await this.graphService.getHistory(num, ledger);
+    const trades = await this.graphService.getHistory(ledger, num);
     return {
       trades,
     };
