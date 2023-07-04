@@ -20,16 +20,24 @@ export class GraphService {
     return `${year}-${month}-${day}#${hour}`;
   }
 
-  async getHistory(ledger: number, limit: number, lastID: string) {
+  divDecimal(val: string) {
+    const decials = BigNumber.from(10).pow(18);
+    const valBigNumber = BigNumber.from(val);
+    return valBigNumber.div(decials).toString();
+  }
+
+  async getHistory(ledger: string, limit: string, lastID: string, old: string) {
+    const keyword = old === '1'? "id_lt": "id_gt"
     const myQuery = `
       query pairs {
-        trades(orderBy: timestamp, orderDirection: desc, first: ${limit}, where: { ledger: ${ledger}, id_gt: ${lastID} }) {
+        trades(orderBy: id, orderDirection: asc, first: ${limit}, where: { ledger: ${ledger}, ${keyword}: "${lastID}" }) {
           id
           account
           ledger
           currencyKey
           timestamp
           amount
+          totalVal
           type
         }
       }
@@ -38,6 +46,9 @@ export class GraphService {
     console.log(myQuery);
     const result = await execute(myQuery, {})
     const trades = result.data?.trades;
+    for(const trade of trades) {
+      trade.totalVal = this.divDecimal(trade.totalVal);
+    }
     return trades;
   }
 
@@ -99,7 +110,10 @@ export class GraphService {
     if(vfs) {
       const decials = BigNumber.from(10).pow(18);
       const bigint = BigNumber.from(vfs[0].vol);
-      return bigint.div(decials).toString();  
+      console.log(decials.toString());
+      console.log(bigint.toString());
+      
+      return bigint.div(decials).toString();
     }
     return -1;
   }

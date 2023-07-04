@@ -372,6 +372,7 @@ GET方式，须带上http请求头
 | ledger   |Number | ledger id |
 | num   |Number | lastest date number |
 | lastid   |string | last id of last batch |
+| old   |Number | 1 means getting old datas than lastid; 0 means getting new datas than lastid  |
 
 ### 返回值
 | 参数名     |  类型          | 说明                                               |
@@ -382,6 +383,7 @@ GET方式，须带上http请求头
 | timestamp   |string | timestamp |
 | amount   |Number | JUSD/jETH amount |
 | type   |Number | short(1), long(2), close(3) |
+| totalVal   |Number | total val of long/short/close (decimals of 10**18) |
 
 **返回样例**
 
