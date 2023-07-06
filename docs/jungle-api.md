@@ -405,3 +405,104 @@ GET方式，须带上http请求头
     "message":"ok"
 }
 ```
+
+
+## 9. History K lines
+
+
+### URL
+- http://ip:port/api/v1/kline/candles
+
+### 请求格式
+
+GET方式，须带上http请求头
+
+**http请求头**
+
+| HTTP header  | 必选 | 说明             |
+| ------------ | ---- | ---------------- |
+| Content-Type | 是   | application/json |
+
+**请求参数**
+
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| token   |string | token name, ETH/BTC/LINK |
+| period   |string | time interval, (5m, 15m, 1h, 4h, 1d) |
+| limit   |number | k lines number |
+
+### 返回值
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| period   |string | time interval |
+| prices   |Array of Object | t: timestamp; o: open; c: close; h: high; l: low |
+| updateAt   |string | update tiemstamp |
+
+**返回样例**
+
+```
+example: 
+http://127.0.0.1:3002api/v1/kline/candles?token=ETH&period=5m&limit=1
+
+{
+    "data":{
+        "prices": [
+            {
+            "t": 1682566200,
+            "o": 1903.01,
+            "c": 1901.94,
+            "h": 1904.285,
+            "l": 1901.94
+            }
+        ],
+        "period": "5m",
+        "updatedAt": 1682566443
+    }
+    "code":0,
+    "message":"ok"
+}
+```
+
+
+## 10. Token lastest price
+
+
+### URL
+- http://ip:port/api/v1/kline/prices
+
+### 请求格式
+
+GET方式，须带上http请求头
+
+**http请求头**
+
+| HTTP header  | 必选 | 说明             |
+| ------------ | ---- | ---------------- |
+| Content-Type | 是   | application/json |
+
+**请求参数**
+
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| token   |string | token name, ETH/BTC/LINK |
+
+### 返回值
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| token   |string | token name |
+| price   |Number | token price, multi by 10**18 |
+| updateAt   |string | update tiemstamp |
+
+**返回样例**
+
+```
+{
+    "data":{
+        "token": "BTC",
+        "price": "5446636125000000000000000000000",
+        "updateAt": 1682561762
+    },
+    "code":0,
+    "message":"ok"
+}
+```

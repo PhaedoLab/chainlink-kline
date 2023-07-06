@@ -83,7 +83,7 @@ export class GraphController {
     }
     this.logger.log(`Ledger: ${ledger}.`);
     // const vols = await this.graphService.getLast24H(ledger);
-    const vols = await this.graphService.getLVols(ledger);
+    const vols = await this.graphService.getLast24H(ledger);
     return {
       value: vols
     };

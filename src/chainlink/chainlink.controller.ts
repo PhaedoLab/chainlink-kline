@@ -1,7 +1,7 @@
 import { Controller, Get, Logger, Param, Query } from '@nestjs/common';
 import { ChainlinkService } from './chainlink.service';
 
-@Controller('api/')
+@Controller('api/v1/kline')
 export class ChainlinkController {
   private readonly logger = new Logger(ChainlinkController.name);
   
@@ -24,8 +24,8 @@ export class ChainlinkController {
    * get the candles of a target token
    * ETC: curl 'http://127.0.0.1:3002/api/candles/ETH?period=5m&limit=1'
    */
-  @Get('candles/:token')
-  async candles(@Param('token') token: string,
+  @Get('candles')
+  async candles(@Query('token') token: string,
     @Query('period') period,
     @Query('limit') limit
   ): Promise<string> {

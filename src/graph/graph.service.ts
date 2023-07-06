@@ -55,7 +55,7 @@ export class GraphService {
   async getLast24H(ledger: number) {
     const myQuery = `
       query pairs {
-        volumeFees(orderBy: date, orderDirection: desc, first: 24, where: { ledger: ${ledger} }) {
+        volumeFees(orderBy: date, orderDirection: desc, first: 25, where: { ledger: ${ledger} }) {
           id
           ledger
           vol
@@ -79,15 +79,19 @@ export class GraphService {
           continue;
         }
         if(vf.date >= last24Hour && vf.date <= lastHour) {
-          const bigint = BigNumber.from(vf.vol);
-          vols.push({
-            'value': bigint.div(decials).toString(),
-            'date': vf.date
-          });
+          // const bigint = BigNumber.from(vf.vol);
+          // total = total.add(bigint.div(decials));
+          console.log(vf);
+          vols.push(vf);
         }
       }
     }
-    return vols;
+    const end = vols[0];
+    const start = vols[vols.length - 1];
+    const decials = BigNumber.from(10).pow(18);
+    const total = BigNumber.from(end.vol).sub(BigNumber.from(start.vol)).div(decials);
+
+    return total.toString();
   }
 
   async getLVols(ledger: number) {
@@ -107,8 +111,8 @@ export class GraphService {
 
     const result = await execute(myQuery, {})
     const vfs = result.data?.volumeFees;
+    const decials = BigNumber.from(10).pow(18);
     if(vfs) {
-      const decials = BigNumber.from(10).pow(18);
       const bigint = BigNumber.from(vfs[0].vol);
       console.log(decials.toString());
       console.log(bigint.toString());
