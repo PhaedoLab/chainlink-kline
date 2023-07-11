@@ -33,9 +33,25 @@ export class ChainlinkController {
       return 'error';
     }
     this.logger.log(token, period, limit);
+    limit = parseInt(limit);
 
     const candles = await this.chainlinkService.getCandles(token, period, limit);
     let jsonText = JSON.stringify(candles);
     return jsonText;
   }
+
+  /**
+   * get the candles of a target token
+   * ETC: curl 'http://127.0.0.1:3002/api/v1/kline/prices24?token=ETH'
+   */
+   @Get('prices24')
+   async prices24(@Query('token') token: string
+   ) {
+     if(!token) {
+       return 'error';
+     }
+ 
+     const prices = await this.chainlinkService.get24hPrices(token);
+     return prices;
+   }
 }

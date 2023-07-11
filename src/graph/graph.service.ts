@@ -27,10 +27,10 @@ export class GraphService {
   }
 
   async getHistory(ledger: string, limit: string, lastID: string, old: string) {
-    const keyword = old === '1'? "id_lt": "id_gt"
+    // const keyword = old === '1'? "id_lt": "id_gt"
     const myQuery = `
       query pairs {
-        trades(orderBy: id, orderDirection: asc, first: ${limit}, where: { ledger: ${ledger}, ${keyword}: "${lastID}" }) {
+        trades(orderBy: id, orderDirection: desc, first: ${limit}, where: { ledger: ${ledger}}) {
           id
           account
           ledger
@@ -85,6 +85,9 @@ export class GraphService {
           vols.push(vf);
         }
       }
+    }
+    if(vols.length === 0) {
+      return BigNumber.from(0).toString();
     }
     const end = vols[0];
     const start = vols[vols.length - 1];

@@ -13,6 +13,8 @@ export class ChainlinkService {
   private intervalRunning: boolean;
   private lastestPrice: Map<string, Prices>;
   private tokenNames: Array<string>;
+  private periods: Array<string>;
+  private tPeriodPositions: Map<string, Map<string, object>>;
 
   constructor(
     @InjectRepository(Prices)
@@ -22,12 +24,63 @@ export class ChainlinkService {
   ) {
     this.intervalRunning = false;
     this.tokenNames = ['BTC', 'ETH', 'LINK'];
+    this.periods = ['5m', '15m', '1h', '4h', '1d'];
     this.lastestPrice = new Map<string, Prices>();
+    this.tPeriodPositions = new Map<string, Map<string, object>>();
+    this.initPeriodPostions();
+  }
+
+  async initPeriodPostions() {
     for(const tokenName of this.tokenNames) {
-      this.findLastestPrice(tokenName).then((price: Prices) => {
-        this.lastestPrice.set(tokenName, price);
-      });
+      const price: Prices = await this.findLastestPrice(tokenName);
+      this.lastestPrice.set(tokenName, price);
+      
+      const periodPositions = new Map<string, object>();
+      for(const period of this.periods) {
+        const candles = await this.findLastestCandles(tokenName, period, 1);
+        let open: string;
+        if(candles.length === 1) {
+          open = '' + candles[0].c;
+        } else {
+          const price = await this.findStartPrice(tokenName);
+          open = price.answer;
+        }
+
+        const startAt = this.getStartTime(period);
+        console.log(tokenName, period, startAt);
+        const high = await this.findMaxMinPrices(tokenName, startAt / 1000, true);
+        const low = await this.findMaxMinPrices(tokenName, startAt / 1000, false);
+        const obj = {
+          'h': high ? high.answer: '0',
+          'l': low ? low.answer: '0',
+          'o': open,
+          'c': price.answer
+        };
+        periodPositions.set(period, obj);
+        console.log(obj);
+      }
+      this.tPeriodPositions.set(tokenName, periodPositions);
     }
+  }
+
+  getStartTime(period: string) {
+    const date = new Date();
+    const min = date.getMinutes();
+    const hour = date.getHours(); // (0-23)
+    const sec = date.getSeconds();
+    let timestamp: number;
+    if(period === '5m') {
+      timestamp = date.getTime() - ((min % 5) * 60 * 1000 + sec * 1000);
+    } else if(period === '15m') {
+      timestamp = date.getTime() - ((min % 15) * 60 * 1000 + sec * 1000);
+    } else if(period === '1h') {
+      timestamp = date.getTime() - ((min % 60) * 60 * 1000 + sec * 1000);
+    } else if(period === '4h') {
+      timestamp = date.getTime() - ((hour % 4) * 3600 * 1000 + min * 60 * 1000 + sec * 1000);
+    } else if(period === '1d') {
+      timestamp = date.getTime() - ((hour % 24) * 3600 * 1000 + min * 60 * 1000 + sec * 1000);
+    }
+    return timestamp;
   }
 
   @Interval(10000)
@@ -60,12 +113,10 @@ export class ChainlinkService {
     } else {
       throw "Bad Token Name.";
     }
-    this.logger.log(`Coming into ${tokenName}`);
     const lastRound = await contract.latestRoundData();
     
     const roundId = BigInt(lastRound.roundId);
     const bias = BigInt("0xFFFFFFFFFFFFFFFF");
-    this.logger.log(`Coming into ${tokenName}, with ${lastRound}`);
   
     const phrase = Number(roundId >> BigInt(64));
     const aggRoundId = Number(roundId & bias);
@@ -116,8 +167,6 @@ export class ChainlinkService {
 
     // update price after this round
     this.lastestPrice.set(tokenName, price);
-
-    this.logger.log(`Coming out ${tokenName}`);
   }
 
   // ========================= //
@@ -164,7 +213,7 @@ export class ChainlinkService {
       .where(`price.`)
       .getOne();
   }
-
+  
   findBundlePrices(tokenName: string, startAt: number, endAt: number): Promise<Prices[]> {
     return this.pricesRepository
       .createQueryBuilder('price')
@@ -172,6 +221,25 @@ export class ChainlinkService {
         { tokenName: tokenName, startAt: startAt, endAt: endAt })
       .orderBy('price.id', 'ASC')
       .getMany();
+  }
+
+  findStartPrice(tokenName: string): Promise<Prices> {
+    return this.pricesRepository
+      .createQueryBuilder('price')
+      .where(`price.token_name = :tokenName`, 
+        { tokenName: tokenName })
+      .orderBy('price.id', 'ASC')
+      .getOne();
+  }
+
+  findMaxMinPrices(tokenName: string, startAt: number, high: boolean): Promise<Prices> {
+    const order = high? 'DESC': 'ASC';
+    return this.pricesRepository
+      .createQueryBuilder('price')
+      .where(`price.token_name = :tokenName AND price.started_at >= :startAt`, 
+        { tokenName: tokenName, startAt: startAt })
+      .orderBy('price.answer', order)
+      .getOne();
   }
 
   findLastestPrice(tokenName: string): Promise<Prices | null> {
@@ -231,22 +299,20 @@ export class ChainlinkService {
   // ========================= //
 
   async _buildAllCandles(tokenName: string, currentTime: number) {
-    this.logger.log(`_buildAllCandles: ${tokenName}`);
     const price = this.lastestPrice.get(tokenName);
     const lastTime = Number(price.startedAt);
     // whether currentTime is valid
     const lastDate = new Date(lastTime * 1000);
     const currentDate = new Date(currentTime * 1000);
 
-    await this._build5MCandles(tokenName, lastDate, currentDate);
-    await this._build15MCandles(tokenName, lastDate, currentDate);
-    await this._build1HCandles(tokenName, lastDate, currentDate);
-    await this._build4HCandles(tokenName, lastDate, currentDate);
-    await this._build1DCandles(tokenName, lastDate, currentDate);
-    this.logger.log(`_buildAllCandles Done: ${tokenName}`);
+    await this._build5MCandles(tokenName, lastDate, currentDate, price);
+    await this._build15MCandles(tokenName, lastDate, currentDate, price);
+    await this._build1HCandles(tokenName, lastDate, currentDate, price);
+    await this._build4HCandles(tokenName, lastDate, currentDate, price);
+    await this._build1DCandles(tokenName, lastDate, currentDate, price);
   }
 
-  async _build5MCandles(tokenName: string, lastDate: Date, currentDate: Date) {
+  async _build5MCandles(tokenName: string, lastDate: Date, currentDate: Date, price: Prices) {
     const lastMin = lastDate.getMinutes();
     const currentMin = currentDate.getMinutes(); // (0-59)
 
@@ -255,6 +321,7 @@ export class ChainlinkService {
     const month = lastDate.getMonth(); //  (0-11)
     const day = lastDate.getDate(); // (1-31)
     const hour = lastDate.getHours(); // (0-23)
+    const lpos = this.tPeriodPositions.get(tokenName).get('5m');
     if(lastMin >= 0 && lastMin < 5 && currentMin >= 5 && currentMin < 10) {
       // 5m  1 <= time < 6
       const endDate = new Date(year, month, day, hour, 5, 0);
@@ -304,8 +371,14 @@ export class ChainlinkService {
       const endData = new Date(year, month, day, hour + 1, 0, 0);
       end = endData.getTime();
     } else {
-      // Not applicable to any situation
-      console.log(`Don't fit any ${tokenName} 5 intervals. ${lastDate}, ${currentDate}`);
+      lpos['l'] =  (lpos['l'] === '0') ? price.answer: (price.answer < lpos['l'] ? price.answer: lpos['l']);
+      lpos['h'] = price.answer > lpos['h'] ? price.answer: lpos['h'];
+      lpos['c'] = price.answer;
+      this.logger.log('------------------------------------');
+      this.logger.log(lpos);
+      this.logger.log(price.answer);
+      this.logger.log('------------------------------------');
+      
       return;
     }
     console.log(`Fit ${tokenName} 5 intervals. ${lastDate}, ${currentDate}`);
@@ -321,14 +394,18 @@ export class ChainlinkService {
     const position = this._get5MCandlePosition(prices, lastCandle);
     // insert position
     const period = this._buildPeriod(position, timestamp, '5m', tokenName);
-    this.insertManyCandles([period]);
-    this.logger.log(`insert into ${period}`);
+    await this.insertManyCandles([period]);
+    lpos['o'] = period.c;
+    lpos['h'] = '0';
+    lpos['l'] = '0';
+    lpos['c'] = '0';
+
     return {
       start, end, timestamp
     }
   }
 
-  async _build15MCandles(tokenName: string, lastDate: Date, currentDate: Date) {
+  async _build15MCandles(tokenName: string, lastDate: Date, currentDate: Date, price: Prices) {
     const lastMin = lastDate.getMinutes();
     const currentMin = currentDate.getMinutes();
 
@@ -337,6 +414,7 @@ export class ChainlinkService {
     const month = lastDate.getMonth();
     const day = lastDate.getDate();
     const hour = lastDate.getHours();
+    const lpos = this.tPeriodPositions.get(tokenName).get('15m')
     if( lastMin >= 10 && lastMin < 15 && currentMin >= 15 && currentMin < 20) {
       // 1 <= time < 16
       const endData = new Date(year, month, day, hour, 15, 0);
@@ -354,8 +432,10 @@ export class ChainlinkService {
       const endData = new Date(year, month, day, hour + 1, 0, 0);
       end = endData.getTime();
     } else {
-      console.log(`Don't fit any 15 intervals. ${currentDate}`);
-      // Not applicable to any situation
+      lpos['l'] =  (lpos['l'] === '0') ? price.answer: (price.answer < lpos['l'] ? price.answer: lpos['l']);
+      lpos['h'] = price.answer > lpos['h'] ? price.answer: lpos['h'];
+      lpos['c'] = price.answer;
+
       return;
     }
     start = end - (15 * 60 * 1000);
@@ -366,16 +446,27 @@ export class ChainlinkService {
       this.logger.log(`Candles length is zero.`);
       return;
     }
+    this.logger.log('===========================================');
+    this.logger.log(`candle length ${candles.length}`);
+    for(const can of candles) {
+      this.logger.log(can);
+    }
     const position = this._getLargeCandlePosition(candles);
+    this.logger.log(position);
+    this.logger.log('===========================================');
     // insert position
     const period = this._buildPeriod(position, timestamp, '15m', tokenName);
-    this.insertManyCandles([period]);
+    await this.insertManyCandles([period]);
+    lpos['o'] = period.c;
+    lpos['h'] = '0';
+    lpos['l'] = '0';
+    lpos['c'] = '0';
     return {
       start, end, timestamp
     }
   }
 
-  async _build1HCandles(tokenName: string, lastDate: Date, currentDate: Date) {
+  async _build1HCandles(tokenName: string, lastDate: Date, currentDate: Date, price: Prices) {
     const lastMin = lastDate.getMinutes();
     const currentMin = currentDate.getMinutes();
 
@@ -384,13 +475,16 @@ export class ChainlinkService {
     const month = lastDate.getMonth();
     const day = lastDate.getDate();
     const hour = lastDate.getHours();
+    const lpos = this.tPeriodPositions.get(tokenName).get('1h');
     if(lastMin >= 55 && lastMin < 60 && currentMin >= 0 && currentMin < 5) {
       // 1h
       const endData = new Date(year, month, day, currentDate.getHours(), 0, 0);
       end = endData.getTime();
     } else {
-      console.log(`Don't fit any 1h intervals. ${currentDate}`);
-      // Not applicable to any situation
+      lpos['l'] =  (lpos['l'] === '0') ? price.answer: (price.answer < lpos['l'] ? price.answer: lpos['l']);
+      lpos['h'] = price.answer > lpos['h'] ? price.answer: lpos['h'];
+      lpos['c'] = price.answer;
+
       return;
     }
     start = end - (60 * 60 * 1000);
@@ -400,13 +494,17 @@ export class ChainlinkService {
     const position = this._getLargeCandlePosition(candles);
     // insert position
     const period = this._buildPeriod(position, timestamp, '1h', tokenName);
-    this.insertManyCandles([period]);
+    await this.insertManyCandles([period]);
+    lpos['o'] = period.c;
+    lpos['h'] = '0';
+    lpos['l'] = '0';
+    lpos['c'] = '0';
     return {
       start, end, timestamp
     }
   }
   
-  async _build4HCandles(tokenName: string, lastDate: Date, currentDate: Date) {
+  async _build4HCandles(tokenName: string, lastDate: Date, currentDate: Date, price: Prices) {
     const lastMin = lastDate.getMinutes();
     const currentMin = currentDate.getMinutes();
 
@@ -415,6 +513,7 @@ export class ChainlinkService {
     const currentMonth = currentDate.getMonth();
     const currentDay = currentDate.getDate();
     const currentHour = currentDate.getHours();
+    const lpos = this.tPeriodPositions.get(tokenName).get('4h');
     if(lastMin >= 55 && lastMin < 60 && currentMin >= 0 && currentMin < 5) {
       if(!(currentHour === 0 ||
         currentHour === 4 ||
@@ -428,8 +527,10 @@ export class ChainlinkService {
       const endData = new Date(currentYear, currentMonth, currentDay, currentHour, 0, 0);
       end = endData.getTime();
     } else {
-      console.log(`Don't fit any 4h intervals. ${currentDate}`);
-      // Not applicable to any situation
+      lpos['l'] =  (lpos['l'] === '0') ? price.answer: (price.answer < lpos['l'] ? price.answer: lpos['l']);
+      lpos['h'] = price.answer > lpos['h'] ? price.answer: lpos['h'];
+      lpos['c'] = price.answer;
+
       return;
     }
     start = end - (4 * 60 * 60 * 1000);
@@ -439,13 +540,18 @@ export class ChainlinkService {
     const position = this._getLargeCandlePosition(candles);
     // insert position
     const period = this._buildPeriod(position, timestamp, '4H', tokenName);
-    this.insertManyCandles([period]);
+    await this.insertManyCandles([period]);
+
+    lpos['o'] = period.c;
+    lpos['h'] = '0';
+    lpos['l'] = '0';
+    lpos['c'] = '0';
     return {
       start, end, timestamp
     }
   }
 
-  async _build1DCandles(tokenName: string, lastDate: Date, currentDate: Date) {
+  async _build1DCandles(tokenName: string, lastDate: Date, currentDate: Date, price: Prices) {
     const lastMin = lastDate.getMinutes();
     const currentMin = currentDate.getMinutes();
 
@@ -454,7 +560,7 @@ export class ChainlinkService {
     const currentMonth = currentDate.getMonth();
     const currentDay = currentDate.getDate();
     const currentHour = currentDate.getHours();
-    
+    const lpos = this.tPeriodPositions.get(tokenName).get('1d');
     if(lastMin >= 55 && lastMin < 60 && currentMin >= 0 && currentMin < 5) {
       // 1d
       if(!(currentHour === 0))  {
@@ -463,8 +569,10 @@ export class ChainlinkService {
       const endData = new Date(currentYear, currentMonth, currentDay, 0, 0, 0);
       end = endData.getTime();
     } else {
-      console.log(`Don't fit any 1d intervals. ${currentDate}`);
-      // Not applicable to any situation
+      lpos['l'] =  (lpos['l'] === '0') ? price.answer: (price.answer < lpos['l'] ? price.answer: lpos['l']);
+      lpos['h'] = price.answer > lpos['h'] ? price.answer: lpos['h'];
+      lpos['c'] = price.answer;
+
       return;
     }
     start = end - (24 * 60 * 60 * 1000);
@@ -474,7 +582,12 @@ export class ChainlinkService {
     const position = this._getLargeCandlePosition(candles);
     // insert position
     const period = this._buildPeriod(position, timestamp, '1D', tokenName);
-    this.insertManyCandles([period]);
+    await this.insertManyCandles([period]);
+    
+    lpos['o'] = period.c;
+    lpos['h'] = '0';
+    lpos['l'] = '0';
+    lpos['c'] = '0';
     return {
       start, end, timestamp
     }
@@ -511,10 +624,39 @@ export class ChainlinkService {
     const l = allL.reduce((a, b) => Math.min(a, b));
     return [o, c, h, l];
   }
+
+  getLastestKLine(tokenName: string, period: string) {
+    const lpos = this.tPeriodPositions.get(tokenName).get(period);
+    lpos['t'] = new Date().getTime();
+    return lpos;
+  }
   
   // ========================= //
   // functions for controller  //
   // ========================= //
+
+  async get24hPrices(tokenName: string) {
+    const prices = (await this.getCandles(tokenName, '1h', 25))?.prices;
+    if(prices) {
+      const price = await this.getLastestPrice(tokenName);
+      const hour24Before = prices[prices.length - 1];
+      const peridos = prices.map((item, index, array) => {
+        const pd: Period = new Period();
+        pd.c = item['c'];
+        pd.o = item['o'];
+        pd.h = item['h'];
+        pd.l = item['l'];
+        return pd;
+      });
+      const position = this._getLargeCandlePosition(peridos);
+      return {
+        'price': price?.price,
+        'price24b': hour24Before['o'],
+        'h': position[2],
+        'l': position[3]
+      }
+    }
+  }
 
   async getLastestPrice(tokenName: string) {
     const price = await this.findLastestPrice(tokenName);
@@ -526,17 +668,31 @@ export class ChainlinkService {
   }
 
   async getCandles(tokenName: string, period: string, limit: number) {
-    const candles = await this.findLastestCandles(tokenName, period, limit);
-    const prices = candles.map((candle: Period) => {
-      const obj = {
-        'o': candle.o,
-        'c': candle.c,
-        'h': candle.h,
-        'l': candle.l,
-        't': candle.t,
-      };
-      return obj;
-    });
+    this.logger.log(limit, typeof limit);
+    let prices: Array<object>;
+    const price = this.getLastestKLine(tokenName, period);
+    this.logger.log(price);
+    if(limit === 1) {
+      this.logger.log('come to this block');
+      prices = [price];
+    } else {
+      this.logger.log(limit - 1);
+      const candles = await this.findLastestCandles(tokenName, period, limit - 1);
+      this.logger.log(candles.length);
+      prices = candles.map((candle: Period) => {
+        const obj = {
+          'o': candle.o,
+          'c': candle.c,
+          'h': candle.h,
+          'l': candle.l,
+          't': candle.t,
+        };
+        return obj;
+      });
+      prices = [price].concat(prices);
+    }
+    
+    
     return {
       'prices': prices,
       "period": period,

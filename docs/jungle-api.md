@@ -506,3 +506,48 @@ GET方式，须带上http请求头
     "message":"ok"
 }
 ```
+
+## 11. Token 24h price
+
+
+### URL
+- http://ip:port/api/v1/kline/prices24
+
+### 请求格式
+
+GET方式，须带上http请求头
+
+**http请求头**
+
+| HTTP header  | 必选 | 说明             |
+| ------------ | ---- | ---------------- |
+| Content-Type | 是   | application/json |
+
+**请求参数**
+
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| token   |string | token name, ETH/BTC/LINK |
+
+### 返回值
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| price24b   |number | price 24h before |
+| price   |Number | token price, multi by 10**18 |
+| h   |number | 24 hour high |
+| l   |number | 24 hour low |
+
+**返回样例**
+
+```
+{
+    "data":{
+        "price":"188285530869",
+        "price24b":186308550000,
+        "h":190475000000,
+        "l":184801000000
+    },
+    "code":0,
+    "message":"ok"
+}
+```
