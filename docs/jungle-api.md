@@ -562,7 +562,7 @@ GET方式，须带上http请求头
 # Contract API
 ## 1. 债务池持仓
 Belong to Story: 
-[Trade v1.0] Pool Assets, Position, Trades and Liquidation
+- [Trade v1.0] Pool Assets, Position, Trades and Liquidation
 
 目标数据：
 - Collateral: 10,000.00 JUSD
@@ -571,5 +571,5 @@ Belong to Story:
 - Synth Value: $3,000.00
 
 接口：
-JungleWrapper::userAllSynthInfo(ledger, user) 获取Synth, Amount, Synth Value
-JUSD::ledgerStackedUSD(ledger, user) 获取当前ledger的collateral
+- JungleWrapper::userAllSynthInfo(ledger, user) 获取Synth, Amount, Synth Value
+- JUSD::ledgerStackedUSD(ledger, user) 获取当前ledger的collateral
