@@ -9,45 +9,45 @@ export class GraphController {
 
   /**
    * get the lastest prices of a target token
-   * ETC: curl 'http://127.0.0.1:3002/api/prices?token=ETH'
+   * ETC: curl 'http://127.0.0.1:3002/api/v1/graph/'
    */
   @Get('tlocked')
   async tlocked(): Promise<any> {
-    const data = 680000000;
+    const tvl = await this.graphService.getTlocked();
     return {
-      value: data,
+      value: tvl,
     };
   }
 
   @Get('tvolume')
   async tvolume(): Promise<any> {
-    const data = 680000000;
+    const vol = await this.graphService.getTvolumeFee(true);
     return {
-      value: data,
+      value: vol,
     };
   }
 
   @Get('volume24')
   async volume24(): Promise<any> {
-    const data = 1000000;
+    const vol24 = await this.graphService.getVolume24();
     return {
-      value: data,
+      value: vol24,
     };
   }
 
   @Get('ttradingfee')
   async ttradingfee(): Promise<any> {
-    const data = 20000;
+    const fee = await this.graphService.getTvolumeFee(false);
     return {
-      value: data,
+      value: fee,
     };
   }
 
   @Get('tusers')
   async tusers(): Promise<any> {
-    const data = 864;
+    const users = await this.graphService.getTusers();
     return {
-      value: data,
+      value: users,
     };
   }
 

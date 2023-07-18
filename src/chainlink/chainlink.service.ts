@@ -247,6 +247,7 @@ export class ChainlinkService {
       .createQueryBuilder('price')
       .where("price.token_name = :tokenName", { tokenName: tokenName })
       .orderBy('price.id', 'DESC')
+      .limit(1)
       .getOne();
   }
 
@@ -374,10 +375,6 @@ export class ChainlinkService {
       lpos['l'] =  (lpos['l'] === '0') ? price.answer: (price.answer < lpos['l'] ? price.answer: lpos['l']);
       lpos['h'] = price.answer > lpos['h'] ? price.answer: lpos['h'];
       lpos['c'] = price.answer;
-      this.logger.log('------------------------------------');
-      this.logger.log(lpos);
-      this.logger.log(price.answer);
-      this.logger.log('------------------------------------');
       
       return;
     }
@@ -446,14 +443,7 @@ export class ChainlinkService {
       this.logger.log(`Candles length is zero.`);
       return;
     }
-    this.logger.log('===========================================');
-    this.logger.log(`candle length ${candles.length}`);
-    for(const can of candles) {
-      this.logger.log(can);
-    }
     const position = this._getLargeCandlePosition(candles);
-    this.logger.log(position);
-    this.logger.log('===========================================');
     // insert position
     const period = this._buildPeriod(position, timestamp, '15m', tokenName);
     await this.insertManyCandles([period]);
@@ -636,9 +626,12 @@ export class ChainlinkService {
   // ========================= //
 
   async get24hPrices(tokenName: string) {
+    const st = new Date().getTime();
     const prices = (await this.getCandles(tokenName, '1h', 25))?.prices;
+    this.logger.log(`Get get24hPrices: ${(new Date().getTime() - st) / 1000} s costed.`);
     if(prices) {
       const price = await this.getLastestPrice(tokenName);
+      this.logger.log(`Get get24hPrices prices: ${(new Date().getTime() - st) / 1000} s costed.`);
       const hour24Before = prices[prices.length - 1];
       const peridos = prices.map((item, index, array) => {
         const pd: Period = new Period();
@@ -668,17 +661,15 @@ export class ChainlinkService {
   }
 
   async getCandles(tokenName: string, period: string, limit: number) {
-    this.logger.log(limit, typeof limit);
+    const st = new Date().getTime();
     let prices: Array<object>;
     const price = this.getLastestKLine(tokenName, period);
-    this.logger.log(price);
     if(limit === 1) {
-      this.logger.log('come to this block');
       prices = [price];
     } else {
-      this.logger.log(limit - 1);
+      const st = new Date().getTime();
       const candles = await this.findLastestCandles(tokenName, period, limit - 1);
-      this.logger.log(candles.length);
+      this.logger.log(candles.length, `Get candles: ${(new Date().getTime() - st) / 1000} s costed.`);
       prices = candles.map((candle: Period) => {
         const obj = {
           'o': candle.o,
@@ -692,7 +683,7 @@ export class ChainlinkService {
       prices = [price].concat(prices);
     }
     
-    
+    this.logger.log(`Get candles: ${(new Date().getTime() - st) / 1000} s costed.`);
     return {
       'prices': prices,
       "period": period,

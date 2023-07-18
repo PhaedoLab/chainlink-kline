@@ -29,14 +29,15 @@ export class ChainlinkController {
     @Query('period') period,
     @Query('limit') limit
   ): Promise<string> {
+    const st = new Date().getTime();
     if(!token || !period || !limit) {
       return 'error';
     }
-    this.logger.log(token, period, limit);
     limit = parseInt(limit);
 
     const candles = await this.chainlinkService.getCandles(token, period, limit);
     let jsonText = JSON.stringify(candles);
+    this.logger.log(`Get candles: ${(new Date().getTime() - st) / 1000} s costed.`);
     return jsonText;
   }
 
@@ -47,11 +48,13 @@ export class ChainlinkController {
    @Get('prices24')
    async prices24(@Query('token') token: string
    ) {
+    const st = new Date().getTime();
      if(!token) {
        return 'error';
      }
  
      const prices = await this.chainlinkService.get24hPrices(token);
+     this.logger.log(`Get prices24: ${(new Date().getTime() - st) / 1000} s costed.`);
      return prices;
    }
 }
