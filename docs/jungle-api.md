@@ -373,6 +373,7 @@ GET方式，须带上http请求头
 | num   |Number | lastest date number |
 | lastid   |string | last id of last batch |
 | old   |Number | 1 means getting old datas than lastid; 0 means getting new datas than lastid  |
+| account   |string | user wallet address  |
 
 ### 返回值
 | 参数名     |  类型          | 说明                                               |

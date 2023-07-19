@@ -26,11 +26,13 @@ export class GraphService {
     return valBigNumber.div(decials).toString();
   }
 
-  async getHistory(ledger: string, limit: string, lastID: string, old: string) {
+  async getHistory(ledger: string, limit: string, lastID: string, old: string, account: string) {
     // const keyword = old === '1'? "id_lt": "id_gt"
+    const ledgerQuery = ledger? `ledger: ${ledger}`: '';
+    const accountQuery = account? `, account: "${account}"`: '';
     const myQuery = `
       query pairs {
-        trades(orderBy: id, orderDirection: desc, first: ${limit}, where: { ledger: ${ledger}}) {
+        trades(orderBy: id, orderDirection: desc, first: ${limit}, where: {${ledgerQuery} ${accountQuery}}) {
           id
           account
           ledger
@@ -39,6 +41,7 @@ export class GraphService {
           amount
           totalVal
           type
+          pnl
         }
       }
     `

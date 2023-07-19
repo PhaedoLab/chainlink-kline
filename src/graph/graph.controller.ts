@@ -9,7 +9,7 @@ export class GraphController {
 
   /**
    * get the lastest prices of a target token
-   * ETC: curl 'http://127.0.0.1:3002/api/v1/graph/'
+   * ETC: curl 'http://127.0.0.1:3002/api/v1/graph/tlocked'
    */
   @Get('tlocked')
   async tlocked(): Promise<any> {
@@ -52,12 +52,12 @@ export class GraphController {
   }
 
   @Get('trades')
-  async trades(@Query('num') num, @Query('ledger') ledger, @Query('lastid') lastid,  @Query('old') old): Promise<any> {
+  async trades(@Query('num') num, @Query('ledger') ledger, @Query('lastid') lastid,  @Query('old') old, @Query('account') account): Promise<any> {
+    if(!ledger && !account) {
+      throw new Error('ledger and account can not be null at the same time.');
+    }
     if(!num) {
       num = '10'
-    }
-    if(!ledger) {
-      ledger = '0';
     }
     if(!lastid) {
       lastid = "";
@@ -68,9 +68,14 @@ export class GraphController {
     if(old === '1' && lastid === '') {
       return {}
     }
+    if(!account) {
+      account = ''
+    } else {
+      account = account.toLowerCase();
+    }
     this.logger.log(typeof num, typeof ledger, typeof lastid, typeof old);
     this.logger.log(`Number: ${num}, Ledger: ${ledger}.`);
-    const trades = await this.graphService.getHistory(ledger, num, lastid, old);
+    const trades = await this.graphService.getHistory(ledger, num, lastid, old, account);
     return {
       trades,
     };

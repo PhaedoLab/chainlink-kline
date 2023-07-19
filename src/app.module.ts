@@ -15,6 +15,10 @@ import { GraphService } from './graph/graph.service';
 import { GraphModule } from './graph/graph.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggingInterceptor, TransformInterceptor } from './app.interceptors';
+import { LiquidationController } from './liquidation/liquidation.controller';
+import { LiquidationService } from './liquidation/liquidation.service';
+import { LiquidationModule } from './liquidation/liquidation.module';
+import { EthereumService } from './liquidation/ethereum.service';
 
 @Module({
   imports: [
@@ -31,9 +35,10 @@ import { LoggingInterceptor, TransformInterceptor } from './app.interceptors';
       synchronize: true,
     }),
     BaseModule,
-    GraphModule
+    GraphModule,
+    LiquidationModule
   ],
-  controllers: [AppController, ChainlinkController, BaseController, GraphController],
+  controllers: [AppController, ChainlinkController, BaseController, GraphController, LiquidationController],
   providers: [AppService, ChainlinkService, BaseService, GraphService,
     {
       provide: APP_INTERCEPTOR,
@@ -43,6 +48,8 @@ import { LoggingInterceptor, TransformInterceptor } from './app.interceptors';
       provide: APP_INTERCEPTOR,
       useClass: TransformInterceptor,
     },
+    LiquidationService,
+    EthereumService
   ],
 })
 export class AppModule {}
