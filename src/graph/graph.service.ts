@@ -2,8 +2,21 @@ import { Injectable } from '@nestjs/common';
 import { execute } from '../../.graphclient'
 import { BigNumber } from "ethers";
 
+interface Counter {
+  count: number,
+  timestamp: number
+}
+
 @Injectable()
 export class GraphService {
+
+  private counters: Map<string, Counter>;
+  private readonly LIQUIDATION = 'liquidation';
+  private readonly TRADE = 'trade';
+
+  constructor() {
+    this.counters = new Map<string, Counter>();
+  }
 
   _formatNumber(n: number): string {
     return n >= 10 ? `${n}` : `0${n}`;
@@ -26,13 +39,14 @@ export class GraphService {
     return valBigNumber.div(decials).toString();
   }
 
-  async getHistory(ledger: string, limit: string, lastID: string, old: string, account: string) {
+  async getHistory(ledger: string, limit: string, offset: string, account: string) {
     // const keyword = old === '1'? "id_lt": "id_gt"
     const ledgerQuery = ledger? `ledger: ${ledger}`: '';
     const accountQuery = account? `, account: "${account}"`: '';
+    const offsetQuery = offset? ` skip: ${offset},`: '';
     const myQuery = `
       query pairs {
-        trades(orderBy: id, orderDirection: desc, first: ${limit}, where: {${ledgerQuery} ${accountQuery}}) {
+        trades(orderBy: id, orderDirection: desc, first: ${limit}, ${offsetQuery} where: {${ledgerQuery} ${accountQuery}}) {
           id
           account
           ledger
@@ -52,7 +66,46 @@ export class GraphService {
     for(const trade of trades) {
       trade.totalVal = this.divDecimal(trade.totalVal);
     }
-    return trades;
+
+    const key = `${this.TRADE}-${ledger}-${account}`;
+    if(this.counters.has(key)) {
+      const counter = this.counters.get(key);
+      const timestamp = counter.timestamp;
+      const now = new Date().getTime();
+      const duration = (now - timestamp) / 1000;
+      if(duration > 30 * 60) {
+        const count = await this._getHistoryCount(ledger, account);
+        const newCounter: Counter = {count, timestamp: now};
+        this.counters.set(key, newCounter);
+      }
+    } else {
+      const count = await this._getHistoryCount(ledger, account);
+      const timestamp = new Date().getTime();
+      const newCounter: Counter = {count, timestamp};
+      this.counters.set(key, newCounter);
+    }
+
+    return {
+      count: this.counters.get(key),
+      result: trades
+    };
+  }
+
+  async _getHistoryCount(ledger: string, account: string) {
+    const ledgerQuery = ledger? `ledger: ${ledger}`: '';
+    const accountQuery = account? `, account: "${account}"`: '';
+    const myQuery = `
+      query pairs {
+        trades(where: {${ledgerQuery} ${accountQuery}}) {
+          id
+        }
+      }
+    `
+    
+    console.log(myQuery);
+    const result = await execute(myQuery, {})
+    const trades = result.data?.trades;
+    return trades.length;
   }
 
   async getLast24H(ledger: number) {
@@ -244,5 +297,121 @@ export class GraphService {
     return 0;
   }
 
+  async getLiquidations(ledger: string, limit: string, offset: string, account: string) {
+    const ledgerQuery = ledger? `ledger: ${ledger}`: '';
+    const accountQuery = account? `, account: "${account}"`: '';
+    const offsetQuery = offset? ` skip: ${offset},`: '';
+    let myQuery = `
+      query pairs {
+        liquidations(orderBy: id, orderDirection: desc, first: ${limit}, ${offsetQuery} where: {${ledgerQuery} ${accountQuery}}) {
+          id
+          ledger
+          account
+          operator
+          collateral
+          debt
+          totalDebt
+          timestamp
+        }
+      }
+    `
+    console.log(myQuery);
+    const result = await execute(myQuery, {})
+    const liquidations = result.data?.liquidations;
+    let resLiquidations = [];
+    for(const liquidation of liquidations) {
+      const col = liquidation?.collateral;
+      const debt = liquidation?.debt;
+      const totalDebt = liquidation?.totalDebt;
+      const timestamp = liquidation?.timestamp;
+      myQuery = `
+        query pairs {
+          trades(orderBy: id, orderDirection: desc, first: ${10}, where: {${ledgerQuery} ${accountQuery}, timestamp: ${timestamp}}) {
+            id
+            account
+            ledger
+            currencyKey
+            timestamp
+            amount
+            totalVal
+            type
+            pnl
+          }
+        }
+      `
+      console.log(myQuery);
+      const result = await execute(myQuery, {})
+      const trades = result.data?.trades;
+      let totalTrade;
+      let itemTrades = [];
+      for(const trade of trades) {
+        const key = trade?.currencyKey;
+        if(key === 'TOTAL') {
+          totalTrade = trade;
+        } else {
+          itemTrades.push(trade);
+        }
+      }
 
+      resLiquidations.push({
+        'collateral': liquidation.collateral,
+        'debt': liquidation.debt,
+        'totalDebt': liquidation.totalDebt,
+        'timestamp': liquidation.timestamp,
+        'debtratio': liquidation.debt/liquidation.totalDebt,
+        'size': totalTrade?.amount,
+        'pnl': totalTrade?.pnl,
+        'pnlrate': totalTrade?.pnl? totalTrade?.pnl/liquidation.collateral: -1,
+        'trades': itemTrades
+      });
+    }
+
+    const key = `${this.LIQUIDATION}-${ledger}-${account}`;
+    if(this.counters.has(key)) {
+      const counter = this.counters.get(key);
+      const timestamp = counter.timestamp;
+      const now = new Date().getTime();
+      const duration = (now - timestamp) / 1000;
+      if(duration > 30 * 60) {
+        const count = await this._getLiquidationsCount(ledger, account);
+        const newCounter: Counter = {count, timestamp: now};
+        this.counters.set(key, newCounter);
+      }
+    } else {
+      const count = await this._getLiquidationsCount(ledger, account);
+      const timestamp = new Date().getTime();
+      const newCounter: Counter = {count, timestamp};
+      this.counters.set(key, newCounter);
+    }
+    
+
+    return {
+      count: this.counters.get(key),
+      result: resLiquidations
+    };
+  }
+
+  async _getLiquidationsCount(ledger: string, account: string) {
+    const ledgerQuery = ledger? `ledger: ${ledger}`: '';
+    const accountQuery = account? `, account: "${account}"`: '';
+    let myQuery = `
+      query pairs {
+        liquidations(where: {${ledgerQuery} ${accountQuery}}) {
+          id
+          ledger
+          account
+          operator
+          collateral
+          debt
+          totalDebt
+          timestamp
+        }
+      }
+    `
+    console.log(myQuery);
+    const result = await execute(myQuery, {})
+    const liquidations = result.data?.liquidations;
+    
+    return liquidations.length;
+  }
 }

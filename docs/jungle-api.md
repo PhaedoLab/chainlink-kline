@@ -371,8 +371,7 @@ GET方式，须带上http请求头
 | ---------- |  ----------- | -------------------------------------------------- |
 | ledger   |Number | ledger id |
 | num   |Number | lastest date number |
-| lastid   |string | last id of last batch |
-| old   |Number | 1 means getting old datas than lastid; 0 means getting new datas than lastid  |
+| offset   |Number | Used for Pagination  |
 | account   |string | user wallet address  |
 
 ### 返回值
@@ -391,14 +390,21 @@ GET方式，须带上http请求头
 ```
 {
     "data":{
-        "trades":[
+        "count":{
+            "count":40,
+            "timestamp":1689936278798
+        },
+        "result":[
             {
-                "account":"0x46e70392352eafadaa0a5d7fa337fb5e0ff558db",
+                "id":"0x8807c4ddeb892205d93e4f7d2ed119dfb133368c308b528333e47790befb71cd04000000",
+                "account":"0xc6edc770fcaf2d80506a7ba96354d2dfadeb6d0f",
                 "ledger":"0",
-                "currencyKey":"jETH",
-                "timestamp":"1688375914",
-                "amount":"11958605340188387",
-                "type":"2"
+                "currencyKey":"TOTAL",
+                "timestamp":"1689737555",
+                "amount":"0",
+                "totalVal":"29935928451728892360",
+                "type":"3",
+                "pnl":"-97448273314749157"
             }
         ]
     },
@@ -509,8 +515,6 @@ GET方式，须带上http请求头
 ```
 
 ## 11. Token 24h price
-
-
 ### URL
 - http://ip:port/api/v1/kline/prices24
 

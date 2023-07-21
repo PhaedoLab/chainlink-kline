@@ -52,33 +52,22 @@ export class GraphController {
   }
 
   @Get('trades')
-  async trades(@Query('num') num, @Query('ledger') ledger, @Query('lastid') lastid,  @Query('old') old, @Query('account') account): Promise<any> {
+  async trades(@Query('num') num, @Query('ledger') ledger, @Query('offset') offset, @Query('account') account): Promise<any> {
     if(!ledger && !account) {
       throw new Error('ledger and account can not be null at the same time.');
     }
     if(!num) {
       num = '10'
     }
-    if(!lastid) {
-      lastid = "";
-    }
-    if(!old) {
-      old = '0';
-    }
-    if(old === '1' && lastid === '') {
-      return {}
-    }
     if(!account) {
       account = ''
     } else {
       account = account.toLowerCase();
     }
-    this.logger.log(typeof num, typeof ledger, typeof lastid, typeof old);
+
     this.logger.log(`Number: ${num}, Ledger: ${ledger}.`);
-    const trades = await this.graphService.getHistory(ledger, num, lastid, old, account);
-    return {
-      trades,
-    };
+    const trades = await this.graphService.getHistory(ledger, num, offset, account);
+    return trades;
   }
 
   @Get('lvol24')
@@ -104,5 +93,16 @@ export class GraphController {
     return {
       value: vols
     };
+  }
+
+  @Get('liquidation')
+  async liquidation(@Query('num') num, @Query('ledger') ledger, @Query('offset') offset, @Query('account') account): Promise<any> {
+    if(!num) {
+      num = '10'
+    }
+
+    this.logger.log(`Ledger: ${ledger}, Account: ${account}.`);
+    const liqs = await this.graphService.getLiquidations(ledger, num, offset, account);
+    return liqs;
   }
 }
