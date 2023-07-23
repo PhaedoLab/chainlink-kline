@@ -70,6 +70,22 @@ export class GraphController {
     return trades;
   }
 
+  @Get('utrades')
+  async utrades(@Query('ledger') ledger, @Query('account') account): Promise<any> {
+    if(!ledger && !account) {
+      throw new Error('ledger and account can not be null at the same time.');
+    }
+    if(!account) {
+      account = ''
+    } else {
+      account = account.toLowerCase();
+    }
+
+    this.logger.log(`Ledger: ${ledger}.`);
+    const trades = await this.graphService.getUHistory(ledger, account);
+    return trades;
+  }
+
   @Get('lvol24')
   async lvol24(@Query('ledger') ledger): Promise<any> {
     if(!ledger) {

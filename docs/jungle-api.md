@@ -557,7 +557,86 @@ GET方式，须带上http请求头
 }
 ```
 
+## 12. User Ledger Trading history
 
+### URL
+- http://ip:port/api/v1/graph/utrades
+
+### 请求格式
+
+GET方式，须带上http请求头
+
+**http请求头**
+
+| HTTP header  | 必选 | 说明             |
+| ------------ | ---- | ---------------- |
+| Content-Type | 是   | application/json |
+
+**请求参数**
+
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| ledger   |Number | ledger id |
+| account   |string | user wallet address, in lower case  |
+
+### 返回值
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| account   |string | user account |
+| ledger   |Number | ledger number |
+| currencyKey   |string | JUSD, jETH |
+| timestamp   |string | timestamp |
+| amount   |Number | JUSD/jETH amount |
+| type   |Number | short(1), long(2), close(3) |
+| totalVal   |Number | total val of long/short/close (decimals of 10**18) |
+
+**返回样例**
+
+```
+{
+    "data":{
+        "count":2,
+        "result":[
+            {
+                "timestamp":"1689737555",
+                "ledger":"0",
+                "type":"3",
+                "assets":[
+                    {
+                        "currency_key":"jBTC",
+                        "amount":"663160416862780"
+                    },
+                    {
+                        "currency_key":"JUSD",
+                        "amount":"10000000000000000000"
+                    }
+                ],
+                "price":"30062000000000000000000",
+                "size":"29935928451728892360",
+                "pnl":"-97448273314749157",
+                "fee":"29935928451728892"
+            },
+            {
+                "timestamp":"1688983900",
+                "ledger":"0",
+                "type":"2",
+                "assets":[
+                    {
+                        "currency_key":"jBTC",
+                        "amount":"331526519328435"
+                    }
+                ],
+                "price":"30163499500000000000000",
+                "size":"10009999999999989458",
+                "pnl":"-10000000000000000",
+                "fee":"10000000000000000"
+            }
+        ]
+    },
+    "code":0,
+    "message":"ok"
+}
+```
 
 
 

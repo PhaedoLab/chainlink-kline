@@ -54,6 +54,7 @@ export class GraphService {
           timestamp
           amount
           totalVal
+          eventid
           type
           pnl
         }
@@ -67,28 +68,145 @@ export class GraphService {
       trade.totalVal = this.divDecimal(trade.totalVal);
     }
 
-    const key = `${this.TRADE}-${ledger}-${account}`;
-    if(this.counters.has(key)) {
-      const counter = this.counters.get(key);
-      const timestamp = counter.timestamp;
-      const now = new Date().getTime();
-      const duration = (now - timestamp) / 1000;
-      if(duration > 30 * 60) {
-        const count = await this._getHistoryCount(ledger, account);
-        const newCounter: Counter = {count, timestamp: now};
-        this.counters.set(key, newCounter);
+    // const key = `${this.TRADE}-${ledger}-${account}`;
+    // if(this.counters.has(key)) {
+    //   const counter = this.counters.get(key);
+    //   const timestamp = counter.timestamp;
+    //   const now = new Date().getTime();
+    //   const duration = (now - timestamp) / 1000;
+    //   if(duration > 30 * 60) {
+    //     const count = await this._getHistoryCount(ledger, account);
+    //     const newCounter: Counter = {count, timestamp: now};
+    //     this.counters.set(key, newCounter);
+    //   }
+    // } else {
+    //   const count = await this._getHistoryCount(ledger, account);
+    //   const timestamp = new Date().getTime();
+    //   const newCounter: Counter = {count, timestamp};
+    //   this.counters.set(key, newCounter);
+    // }
+
+    return {
+      count: 0,
+      result: trades
+    };
+  }
+
+  async getUHistory(ledger: string, account: string) {
+    // const keyword = old === '1'? "id_lt": "id_gt"
+    const ledgerQuery = ledger? `ledger: ${ledger}`: '';
+    const accountQuery = account? `, account: "${account}"`: '';
+    const myQuery = `
+      query pairs {
+        trades(orderBy: id, orderDirection: desc, where: {${ledgerQuery} ${accountQuery}}) {
+          id
+          account
+          ledger
+          currencyKey
+          keyPrice
+          timestamp
+          amount
+          totalVal
+          eventid
+          type
+          fee
+          pnl
+        }
       }
-    } else {
-      const count = await this._getHistoryCount(ledger, account);
-      const timestamp = new Date().getTime();
-      const newCounter: Counter = {count, timestamp};
-      this.counters.set(key, newCounter);
+    `
+    
+    console.log(myQuery);
+    const result = await execute(myQuery, {})
+    const trades = result.data?.trades;
+    console.log(`trades lenght: ${trades.length}`);
+    let buckets = [];
+    const newTrades = [];
+    let lastEventid = null;
+    for(const trade of trades) {
+      trade.totalVal = this.divDecimal(trade.totalVal);
+      const type = trade?.type;
+      const eventid = trade?.eventid;
+      if(type === '3') {
+        if(lastEventid === null) {
+          lastEventid = eventid;
+          buckets.push(trade);
+        } else if(eventid === lastEventid) {
+          buckets.push(trade);
+        } else {
+          const closeTrade = this._getCloseTrade(buckets);
+          buckets = [];
+          lastEventid = eventid;
+          newTrades.push(closeTrade);
+        }
+      } else {
+        if(buckets.length !== 0) {
+          const closeTrade = this._getCloseTrade(buckets);
+          buckets = [];
+          lastEventid = null;
+          newTrades.push(closeTrade);
+        }
+        const td = {
+          'timestamp': trade['timestamp'],
+          'ledger': trade['ledger'],
+          'type': trade['type'],
+          'assets': [{
+            'currency_key': trade['currencyKey'],
+            'amount': trade['amount']
+          }],
+          'price': trade['keyPrice'],
+          'size': trade['totalVal'],
+          'pnl': trade['pnl'],
+          'fee': trade['fee'],
+        }
+        newTrades.push(td);
+      }
+    }
+    if(buckets.length !== 0) {
+      const closeTrade = this._getCloseTrade(buckets);
+      newTrades.push(closeTrade);
     }
 
     return {
-      count: this.counters.get(key),
-      result: trades
+      count: newTrades.length,
+      result: newTrades
     };
+  }
+
+  _getCloseTrade(buckets: any[]) {
+    const trade = {
+      'timestamp':'',
+      'ledger':'',
+      'type':'',
+      'assets': [],
+      'price':'',
+      'size':'',
+      'pnl':'',
+      'fee':'',
+    }
+    const assets = [];
+    let bigerPrice = BigNumber.from('0');
+    for(const bucket of buckets) {
+      if(bucket['currencyKey'] === 'TOTAL') {
+        trade.timestamp = bucket['timestamp'];
+        trade.ledger = bucket['ledger'];
+        trade.type = bucket['type'];
+        trade.size = bucket['totalVal'];
+        trade.pnl = bucket['pnl'];
+        trade.fee = bucket['fee'];
+      } else {
+        assets.push({
+          'currency_key': bucket['currencyKey'],
+          'amount': bucket['amount']
+        }); 
+        if(bigerPrice.lt(BigNumber.from(bucket['keyPrice']))) {
+          bigerPrice = BigNumber.from(bucket['keyPrice']);
+        }
+      }
+    }
+    trade.price = bigerPrice.toString();
+    trade.assets = assets;
+    console.log(trade);
+    return trade;
   }
 
   async _getHistoryCount(ledger: string, account: string) {
