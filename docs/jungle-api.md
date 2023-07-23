@@ -586,9 +586,10 @@ GET方式，须带上http请求头
 | ledger   |Number | ledger number |
 | currencyKey   |string | JUSD, jETH |
 | timestamp   |string | timestamp |
-| amount   |Number | JUSD/jETH amount |
+| size   |Number | Trade total volume |
 | type   |Number | short(1), long(2), close(3) |
-| totalVal   |Number | total val of long/short/close (decimals of 10**18) |
+| pnl   |Number | trade pnl |
+| fee   |Number | trade fee |
 
 **返回样例**
 
@@ -604,11 +605,13 @@ GET方式，须带上http请求头
                 "assets":[
                     {
                         "currency_key":"jBTC",
-                        "amount":"663160416862780"
+                        "amount":"663160416862780",
+                        "price":"30062000000000000000000"
                     },
                     {
                         "currency_key":"JUSD",
-                        "amount":"10000000000000000000"
+                        "amount":"10000000000000000000",
+                        "price":"1000000000000000000"
                     }
                 ],
                 "price":"30062000000000000000000",
@@ -623,7 +626,8 @@ GET方式，须带上http请求头
                 "assets":[
                     {
                         "currency_key":"jBTC",
-                        "amount":"331526519328435"
+                        "amount":"331526519328435",
+                        "price":"30163499500000000000000"
                     }
                 ],
                 "price":"30163499500000000000000",

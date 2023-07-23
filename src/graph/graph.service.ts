@@ -151,7 +151,8 @@ export class GraphService {
           'type': trade['type'],
           'assets': [{
             'currency_key': trade['currencyKey'],
-            'amount': trade['amount']
+            'amount': trade['amount'],
+            'price': trade['keyPrice'],
           }],
           'price': trade['keyPrice'],
           'size': trade['totalVal'],
@@ -196,7 +197,8 @@ export class GraphService {
       } else {
         assets.push({
           'currency_key': bucket['currencyKey'],
-          'amount': bucket['amount']
+          'amount': bucket['amount'],
+          'price': bucket['keyPrice'],
         }); 
         if(bigerPrice.lt(BigNumber.from(bucket['keyPrice']))) {
           bigerPrice = BigNumber.from(bucket['keyPrice']);
