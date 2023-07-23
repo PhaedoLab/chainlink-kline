@@ -642,6 +642,92 @@ GET方式，须带上http请求头
 }
 ```
 
+## 12. User Liquidation
+
+### URL
+- http://ip:port/api/v1/graph/liquidation
+
+### 请求格式
+
+GET方式，须带上http请求头
+
+**http请求头**
+
+| HTTP header  | 必选 | 说明             |
+| ------------ | ---- | ---------------- |
+| Content-Type | 是   | application/json |
+
+**请求参数**
+
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| ledger   |Number | ledger id |
+| account   |string | user wallet address, in lower case  |
+
+### 返回值
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| ledger   |Number | ledger number |
+| collateral   |Number | User collateral |
+| size   |Number | Trade total volume |
+| trades   |Object | Each Synth of the Liquidation |
+| snapshot   |Object | Snapshot of Liquidation |
+| remain_value   |Number | trade pnl |
+| fee   |Number | trade fee |
+
+
+**Snapshot**
+| 参数名     |  类型          | 说明                                               |
+| ---------- |  ----------- | -------------------------------------------------- |
+| debt   |Number | User Debt |
+| total_debt   |Number | Total Debt |
+| debt_ratio   |Number | Debt Ratio |
+| pnl   |Number | P & L |
+| pnlrate   |Number | p & L Ratio |
+
+
+**返回样例**
+
+```
+{
+    "data":{
+        "count":{
+            "count":1,
+            "timestamp":1690118865450
+        },
+        "result":[
+            {
+                "timestamp":"1690096497",
+                "ledger":"0",
+                "normal":true,
+                "collateral":"200000000000000000000",
+                "size":"100000000000000000000",
+                "trades":[
+                    {
+                        "currencyKey":"jBTC",
+                        "keyPrice":"1000000000000000000",
+                        "amount":"100000000000000000000",
+                        "totalVal":"100000000000000000000",
+                        "pnl":"-1",
+                        "fee":"-1"
+                    }
+                ],
+                "snapshot":{
+                    "debt":"300000000000000000000",
+                    "total_debt":"300000000000000000000",
+                    "debt_ratio":1,
+                    "pnl":"-200500000000000000000",
+                    "pnlrate":-1.0025
+                },
+                "remain_value":"500000000000000000",
+                "fee":"500000000000000000"
+            }
+        ]
+    },
+    "code":0,
+    "message":"ok"
+}
+```
 
 
 

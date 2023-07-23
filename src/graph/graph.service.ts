@@ -431,6 +431,8 @@ export class GraphService {
           collateral
           debt
           totalDebt
+          normal
+          eventid
           timestamp
         }
       }
@@ -438,6 +440,7 @@ export class GraphService {
     console.log(myQuery);
     const result = await execute(myQuery, {})
     const liquidations = result.data?.liquidations;
+    console.log(`liquidations num: ${liquidations.length}`);
     let resLiquidations = [];
     for(const liquidation of liquidations) {
       const col = liquidation?.collateral;
@@ -446,16 +449,13 @@ export class GraphService {
       const timestamp = liquidation?.timestamp;
       myQuery = `
         query pairs {
-          trades(orderBy: id, orderDirection: desc, first: ${10}, where: {${ledgerQuery} ${accountQuery}, timestamp: ${timestamp}}) {
-            id
-            account
-            ledger
+          trades(orderBy: id, orderDirection: desc, first: ${10}, where: {type: 3, ${ledgerQuery} ${accountQuery}, timestamp: ${timestamp}}) {
             currencyKey
-            timestamp
+            keyPrice
             amount
             totalVal
-            type
             pnl
+            fee
           }
         }
       `
@@ -466,6 +466,7 @@ export class GraphService {
       let itemTrades = [];
       for(const trade of trades) {
         const key = trade?.currencyKey;
+        trade.totalVal = this.divDecimal(trade?.totalVal);
         if(key === 'TOTAL') {
           totalTrade = trade;
         } else {
@@ -474,15 +475,21 @@ export class GraphService {
       }
 
       resLiquidations.push({
-        'collateral': liquidation.collateral,
-        'debt': liquidation.debt,
-        'totalDebt': liquidation.totalDebt,
         'timestamp': liquidation.timestamp,
-        'debtratio': liquidation.debt/liquidation.totalDebt,
-        'size': totalTrade?.amount,
-        'pnl': totalTrade?.pnl,
-        'pnlrate': totalTrade?.pnl? totalTrade?.pnl/liquidation.collateral: -1,
-        'trades': itemTrades
+        'ledger': liquidation.ledger,
+        'normal': liquidation.normal,
+        'collateral': liquidation.collateral,
+        'size': totalTrade?.totalVal,
+        'trades': itemTrades,
+        'snapshot': {
+          'debt': liquidation.debt,
+          'total_debt': liquidation.totalDebt,
+          'debt_ratio': liquidation.debt/liquidation.totalDebt,
+          'pnl': totalTrade?.pnl,
+          'pnlrate': totalTrade?.pnl? totalTrade?.pnl/liquidation.collateral: -1,
+        },
+        'remain_value': totalTrade.fee,
+        'fee': totalTrade.fee
       });
     }
 
@@ -504,7 +511,6 @@ export class GraphService {
       this.counters.set(key, newCounter);
     }
     
-
     return {
       count: this.counters.get(key),
       result: resLiquidations
