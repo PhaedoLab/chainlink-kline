@@ -758,10 +758,10 @@ Belong to Story:
 - multis boolean[]
 - activeDebt number[][]，内层数组的长度是5，分别是：
     - sType: 0表示crypto；1表示股票；2表示外汇
-    - startDayOfWeek
-    - startHourOfDay
-    - endDayOfWeek
-    - endHourOfDay
+    - startDayOfWeek：交易起始Day 1-7
+    - startHourOfDay：交易起始Hour 0-23
+    - endDayOfWeek：交易结束Day 1-7
+    - endHourOfDay：交易结束Hour 0-23
 
 接口：
 - JungleWrapper::allLedgers()
