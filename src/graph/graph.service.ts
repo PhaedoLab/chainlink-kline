@@ -111,6 +111,7 @@ export class GraphService {
           type
           fee
           pnl
+          hash
         }
       }
     `
@@ -154,10 +155,12 @@ export class GraphService {
             'amount': trade['amount'],
             'price': trade['keyPrice'],
           }],
-          'price': trade['keyPrice'],
+          'currency_key': trade['currencyKey'],
+          'amount': trade['amount'],
           'size': trade['totalVal'],
           'pnl': trade['pnl'],
           'fee': trade['fee'],
+          'hash': trade['hash'],
         }
         newTrades.push(td);
       }
@@ -179,13 +182,17 @@ export class GraphService {
       'ledger':'',
       'type':'',
       'assets': [],
-      'price':'',
+      'amount':'',
+      'currency_key':'',
       'size':'',
       'pnl':'',
       'fee':'',
+      'hash': ''
     }
     const assets = [];
     let bigerPrice = BigNumber.from('0');
+    let priceKey = '';
+    let keyAmount = '';
     for(const bucket of buckets) {
       if(bucket['currencyKey'] === 'TOTAL') {
         trade.timestamp = bucket['timestamp'];
@@ -194,18 +201,23 @@ export class GraphService {
         trade.size = bucket['totalVal'];
         trade.pnl = bucket['pnl'];
         trade.fee = bucket['fee'];
+        trade.hash = bucket['hash'];
       } else {
         assets.push({
           'currency_key': bucket['currencyKey'],
           'amount': bucket['amount'],
           'price': bucket['keyPrice'],
+          'total_value': bucket['totalVal'],
         }); 
-        if(bigerPrice.lt(BigNumber.from(bucket['keyPrice']))) {
-          bigerPrice = BigNumber.from(bucket['keyPrice']);
+        if(bigerPrice.lt(BigNumber.from(bucket['totalVal']))) {
+          bigerPrice = BigNumber.from(bucket['totalVal']);
+          priceKey = bucket['currencyKey'];
+          keyAmount = bucket['amount'];
         }
       }
     }
-    trade.price = bigerPrice.toString();
+    trade.amount = keyAmount;
+    trade.currency_key = priceKey;
     trade.assets = assets;
     console.log(trade);
     return trade;

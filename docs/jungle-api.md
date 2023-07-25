@@ -747,3 +747,21 @@ Belong to Story:
 接口：
 - JungleWrapper::userAllSynthInfo(ledger, user) 获取Synth, Amount, Synth Value
 - JUSD::ledgerStackedUSD(ledger, user) 获取当前ledger的collateral
+
+
+
+## 2. 所有债务池信息
+目标数据：
+- ledgers number[]
+- ledgerNames string[]
+- collaterals number[]
+- multis boolean[]
+- activeDebt number[][]，内层数组的长度是5，分别是：
+    - sType: 0表示crypto；1表示股票；2表示外汇
+    - startDayOfWeek
+    - startHourOfDay
+    - endDayOfWeek
+    - endHourOfDay
+
+接口：
+- JungleWrapper::allLedgers()
