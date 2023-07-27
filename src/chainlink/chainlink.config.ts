@@ -60,3 +60,12 @@ const addrLINK = "0xd9FFdb71EbE7496cC440152d43986Aae0AB76665"; // LINK / USD
 export const contractBTC = new ethers.Contract(addrBTC, aggregatorV3InterfaceABI, provider);
 export const contractETH = new ethers.Contract(addrETH, aggregatorV3InterfaceABI, provider);
 export const contractLINK = new ethers.Contract(addrLINK, aggregatorV3InterfaceABI, provider);
+
+const addrXAU = "0x0C466540B2ee1a31b441671eac0ca886e051E410"; // XAU / USD
+const addrEUR = "0x73366Fe0AA0Ded304479862808e02506FE556a98"; // EUR / USD
+const addrGBP = "0x099a2540848573e94fb1Ca0Fa420b00acbBc845a"; // GBP / USD
+const addrJPY = "0xD647a6fC9BC6402301583C91decC5989d8Bc382D"; // JPY / USD
+export const contractXAU = new ethers.Contract(addrXAU, aggregatorV3InterfaceABI, provider);
+export const contractEUR = new ethers.Contract(addrEUR, aggregatorV3InterfaceABI, provider);
+export const contractGBP = new ethers.Contract(addrGBP, aggregatorV3InterfaceABI, provider);
+export const contractJPY = new ethers.Contract(addrJPY, aggregatorV3InterfaceABI, provider);

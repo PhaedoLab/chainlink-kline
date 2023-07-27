@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as fs from 'fs';
 
 @Injectable()
 export class BaseService {
@@ -26,6 +27,18 @@ export class BaseService {
         buy: 'https://uniswap.org/',
         bridge: 'https://uniswap.org/'
       }
+    }
+  }
+
+  multiLing() {
+    try {
+      // 相对路径是相对于应用程序根目录的
+      const rawData = fs.readFileSync('./docs/jungle-multi-ling.json');
+      const jsonData = JSON.parse(rawData.toString());
+      return jsonData;
+    } catch (error) {
+      console.error(`Read file failed.`, error, fs);
+      return null;
     }
   }
 }

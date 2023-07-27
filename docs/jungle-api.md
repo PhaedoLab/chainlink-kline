@@ -729,6 +729,44 @@ GET方式，须带上http请求头
 }
 ```
 
+## 14. Mulit language
+
+### URL
+- http://ip:port/api/v1/base/multi_ling
+
+### 请求格式
+
+GET方式，须带上http请求头
+
+**http请求头**
+
+| HTTP header  | 必选 | 说明             |
+| ------------ | ---- | ---------------- |
+| Content-Type | 是   | application/json |
+
+
+### 返回值
+返回的data值就是一个Map，包含了所有的key，value。但是是两层的，所有的key格式都是`module_function_xx_xx`，module是一层的key。
+
+**返回样例**
+
+```
+{
+    "data":{
+        "Common":{
+            "Common_Connect":"Connect Wallet",
+            "Common_Swicth_NetWork":"Switch network to",
+            "Common_AddTo_Wallet":"Add to Wallet"
+        },
+        "Navbar":{
+            "Navbar_Menu_Dashboard":"Dashboard",
+            "Navbar_Menu_Trade":"Trade"
+        }
+    },
+    "code":0,
+    "message":"ok"
+}
+```
 
 
 
@@ -752,16 +790,16 @@ Belong to Story:
 
 ## 2. 所有债务池信息
 目标数据：
-- ledgers number[]
-- ledgerNames string[]
-- collaterals number[]
-- multis boolean[]
-- activeDebt number[][]，内层数组的长度是5，分别是：
+- ledgers: number[]
+- ledgerNames: string[]
+- collaterals: number[]
+- multis: boolean[]
+- activeDebt: number[][]，内层数组的长度是5，分别是：
     - sType: 0表示crypto；1表示股票；2表示外汇
-    - startDayOfWeek：交易起始Day 1-7
-    - startHourOfDay：交易起始Hour 0-23
-    - endDayOfWeek：交易结束Day 1-7
-    - endHourOfDay：交易结束Hour 0-23
+    - startDayOfWeek: 交易起始Day 1-7
+    - startHourOfDay: 交易起始Hour 0-23
+    - endDayOfWeek: 交易结束Day 1-7
+    - endHourOfDay: 交易结束Hour 0-23
 
 接口：
 - JungleWrapper::allLedgers()

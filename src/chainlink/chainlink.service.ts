@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { contractBTC, contractETH, contractLINK } from './chainlink.config';
+import { contractBTC, contractETH, contractLINK, contractXAU, contractEUR, contractGBP, contractJPY } from './chainlink.config';
 import { Period, Prices } from './chainlink.entiry';
 import { Repository, InsertResult } from 'typeorm';
 import { ethers } from 'ethers';
@@ -23,7 +23,7 @@ export class ChainlinkService {
     private periodRepository: Repository<Period>,
   ) {
     this.intervalRunning = false;
-    this.tokenNames = ['BTC', 'ETH', 'LINK'];
+    this.tokenNames = ['BTC', 'ETH', 'LINK', 'XAU', 'EUR', 'GBP', 'JPY'];
     this.periods = ['5m', '15m', '1h', '4h', '1d'];
     this.lastestPrice = new Map<string, Prices>();
     this.tPeriodPositions = new Map<string, Map<string, object>>();
@@ -110,6 +110,14 @@ export class ChainlinkService {
       contract = contractETH;
     } else if(tokenName === 'LINK') {
       contract = contractLINK;
+    } else if(tokenName === 'XAU') {
+      contract = contractXAU;
+    } else if(tokenName === 'EUR') {
+      contract = contractEUR;
+    } else if(tokenName === 'GBP') {
+      contract = contractGBP;
+    } else if(tokenName === 'JPY') {
+      contract = contractJPY;
     } else {
       throw "Bad Token Name.";
     }

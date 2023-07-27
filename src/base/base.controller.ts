@@ -31,4 +31,10 @@ export class BaseController {
       const defi = this.baseService.defi(chain);
       return defi;
     }
+
+    @Get('multi_ling')
+    async multiLing(): Promise<any> {
+      const data = this.baseService.multiLing();
+      return data;
+    }
 }
