@@ -7,6 +7,20 @@ import { Period, Prices } from './chainlink.entiry';
 import { Repository, InsertResult } from 'typeorm';
 import { ethers } from 'ethers';
 
+enum SynthType {
+  Crypto,
+  Equity,
+  Forex
+}
+
+interface CryptoInfo {
+  sType: SynthType;
+  startDayOfWeek: number;
+  startHourOfDay: number;
+  endDayOfWeek: number;
+  endHourOfDay: number;
+}
+
 @Injectable()
 export class ChainlinkService {
   private readonly logger = new Logger(ChainlinkService.name);
@@ -15,6 +29,7 @@ export class ChainlinkService {
   private tokenNames: Array<string>;
   private periods: Array<string>;
   private tPeriodPositions: Map<string, Map<string, object>>;
+  private cryptoInfos: Map<string, CryptoInfo>;
 
   constructor(
     @InjectRepository(Prices)
@@ -28,6 +43,16 @@ export class ChainlinkService {
     this.lastestPrice = new Map<string, Prices>();
     this.tPeriodPositions = new Map<string, Map<string, object>>();
     this.initPeriodPostions();
+    this.cryptoInfos = new Map<string, CryptoInfo>();
+    for(const token of ['XAU', 'EUR', 'GBP', 'JPY']) {
+      this.cryptoInfos.set(token, {
+        sType: SynthType.Forex,
+        startDayOfWeek: 7,
+        startHourOfDay: 21,
+        endDayOfWeek: 5,
+        endHourOfDay: 20
+      });
+    }
   }
 
   async initPeriodPostions() {
@@ -57,9 +82,63 @@ export class ChainlinkService {
           'c': price.answer
         };
         periodPositions.set(period, obj);
-        console.log(obj);
+        console.log(tokenName, obj);
       }
       this.tPeriodPositions.set(tokenName, periodPositions);
+    }
+  }
+
+  private canRecord(tokenName: string, price: object): boolean {
+    if(!this.cryptoInfos.has(tokenName)) {
+      return true;
+    }
+    const cryptoInfo = this.cryptoInfos.get(tokenName);
+    let sType = cryptoInfo.sType;
+    let startDayOfWeek = cryptoInfo.startDayOfWeek;
+    let startHourOfDay = cryptoInfo.startHourOfDay;
+    let endDayOfWeek = cryptoInfo.endDayOfWeek;
+    let endHourOfDay = cryptoInfo.endHourOfDay;
+  
+    if (sType == SynthType.Crypto) {
+        return true;
+    } else if (sType == SynthType.Equity) {
+        return true;
+    } else if (sType == SynthType.Forex) {
+        let dateInversion = false;
+        if (startDayOfWeek > endDayOfWeek) {
+            let tmp = startDayOfWeek;
+            startDayOfWeek = endDayOfWeek;
+            endDayOfWeek = tmp;
+            
+            tmp = startHourOfDay;
+            startHourOfDay = endHourOfDay;
+            endHourOfDay = tmp;
+            dateInversion = true;
+        }
+        // Determine the current day of the week and hour
+        const isStr = typeof(price['t']) === 'string';
+        const date = isStr? new Date(parseInt(price['t'])): new Date(price['t']);
+        let dayOfWeek = date.getDay();
+        dayOfWeek = dayOfWeek === 0? 7: dayOfWeek;
+        let hourOfDay = date.getHours();
+        // let dayOfWeek = Math.floor((price['t'] / 86400000 + 4) % 7); // 1 is Monday, 7 is Sunday
+        // let hourOfDay = Math.floor(Date.now() / 3600000) % 24; // Convert timestamp to hours
+  
+        if (dayOfWeek < startDayOfWeek || dayOfWeek > endDayOfWeek) {
+            // Outside the allowed range
+            return dateInversion ? true : false;
+        } else if (dayOfWeek === startDayOfWeek && hourOfDay < startHourOfDay) {
+            // Outside the allowed range
+            return dateInversion ? true : false;
+        } else if (dayOfWeek === endDayOfWeek && hourOfDay >= endHourOfDay) {
+            // Outside the allowed range
+            return dateInversion ? true : false;
+        } else {
+            // Within the allowed range
+            return dateInversion ? false : true;
+        }
+    } else {
+        return true;
     }
   }
 
@@ -624,9 +703,15 @@ export class ChainlinkService {
   }
 
   getLastestKLine(tokenName: string, period: string) {
-    const lpos = this.tPeriodPositions.get(tokenName).get(period);
-    lpos['t'] = new Date().getTime();
-    return lpos;
+    const token = this.tPeriodPositions.get(tokenName);
+    if(token && token.has(period)) {
+      const lpos = this.tPeriodPositions.get(tokenName).get(period);
+      lpos['t'] = new Date().getTime();
+      return lpos;
+    } else {
+
+    }
+    
   }
   
   // ========================= //
@@ -635,7 +720,7 @@ export class ChainlinkService {
 
   async get24hPrices(tokenName: string) {
     const st = new Date().getTime();
-    const prices = (await this.getCandles(tokenName, '1h', 25))?.prices;
+    const prices = (await this.getCandles(tokenName, '1h', 25, 'false'))?.prices;
     this.logger.log(`Get get24hPrices: ${(new Date().getTime() - st) / 1000} s costed.`);
     if(prices) {
       const price = await this.getLastestPrice(tokenName);
@@ -668,7 +753,7 @@ export class ChainlinkService {
     };
   }
 
-  async getCandles(tokenName: string, period: string, limit: number) {
+  async getCandles(tokenName: string, period: string, limit: number, gap: string) {
     const st = new Date().getTime();
     let prices: Array<object>;
     const price = this.getLastestKLine(tokenName, period);
@@ -692,10 +777,33 @@ export class ChainlinkService {
     }
     
     this.logger.log(`Get candles: ${(new Date().getTime() - st) / 1000} s costed.`);
+    if(gap === 'true') {
+      prices = prices.filter((price) => this.canRecord(tokenName, price))
+    }
     return {
       'prices': prices,
       "period": period,
       "updatedAt": new Date().getTime()
     };
+  }
+
+  // ========================= //
+  //            Website        //
+  // ========================= //
+  
+  async getTokenInfo(tokenName: string) {
+
+    const st = new Date().getTime();
+    const candles = await this.getCandles(tokenName, '1h', 40, 'false');
+    const prices = candles.prices;
+    this.logger.log(`prices length: ${prices.length}`);
+
+    const priceChg = await this.get24hPrices(tokenName);
+    this.logger.log('priceChg', priceChg);
+    return {
+      'prices': prices,
+      'price': priceChg['price'],
+      'price24b': priceChg['price24b'],
+    }
   }
 }

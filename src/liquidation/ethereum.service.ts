@@ -19,7 +19,7 @@ export class EthereumService {
     this.provider = new ethers.providers.JsonRpcProvider(rpc);
     const privateKey = '130b1380f8e1ee25ce026e1a9cade501139f3db26c751060c5efa0af8f48ef09';
     this.wallet = new ethers.Wallet(privateKey, this.provider);
-    const contractAddr = '0x89D7a0A1f0E3204F3fcBC251a9C262B1A60bEd5E';
+    const contractAddr = '0xea943e47D8a41E8FCFDf4498C6296f59A6372A2f';
     this.contract = new ethers.Contract(contractAddr, this.ABI, this.wallet);
   }
 
@@ -55,8 +55,10 @@ export class EthereumService {
 
   async liquidate(ledger: BigNumber, user: string) {
     try{
-      await this.contract.liquidate(ledger, user);
+      console.log(`liquidating user: ${ledger} ${user}.`);
+      await this.contract.liquidation(ledger, user);
     } catch(error) {
+      console.log(`liquidation user: ${ledger} ${user} failed.`);
       console.log(error);
     }
   }

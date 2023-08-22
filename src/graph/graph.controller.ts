@@ -112,13 +112,13 @@ export class GraphController {
   }
 
   @Get('liquidation')
-  async liquidation(@Query('num') num, @Query('ledger') ledger, @Query('offset') offset, @Query('account') account): Promise<any> {
+  async liquidation(@Query('num') num, @Query('ledger') ledger, @Query('account') account): Promise<any> {
     if(!num) {
       num = '10'
     }
 
     this.logger.log(`Ledger: ${ledger}, Account: ${account}.`);
-    const liqs = await this.graphService.getLiquidations(ledger, num, offset, account);
+    const liqs = await this.graphService.getLiquidations(ledger, num, account);
     return liqs;
   }
 }

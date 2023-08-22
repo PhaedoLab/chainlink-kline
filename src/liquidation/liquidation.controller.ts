@@ -1,4 +1,4 @@
-import { Controller, Get, Logger } from '@nestjs/common';
+import { Controller, Get, Logger, Query } from '@nestjs/common';
 import { LiquidationService } from './liquidation.service';
 
 @Controller('api/v1/liq')
@@ -8,7 +8,13 @@ export class LiquidationController {
   constructor(private readonly liquidationService: LiquidationService) {}
 
   @Get('trigger')
-  async trigger() {
-    await this.liquidationService.test();
+  async trigger(@Query('state') state) {
+    await this.liquidationService.manualTrigger(state);
+  }
+
+  @Get('info')
+  async getInfo(@Query('state') state) {
+    const info = await this.liquidationService.getQueueInfo(state);
+    return info;
   }
 }

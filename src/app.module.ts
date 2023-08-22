@@ -8,6 +8,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Prices, Period } from './chainlink/chainlink.entiry';
 import { BaseController } from './base/base.controller';
+import { Emails, JEmails } from './base/base.entiry';
 import { BaseService } from './base/base.service';
 import { BaseModule } from './base/base.module';
 import { GraphController } from './graph/graph.controller';
@@ -31,7 +32,7 @@ import { EthereumService } from './liquidation/ethereum.service';
       username: 'root',
       password: '',
       database: 'test',
-      entities: [Prices, Period],
+      entities: [Prices, Period, Emails, JEmails],
       synchronize: true,
     }),
     BaseModule,

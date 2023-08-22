@@ -27,7 +27,8 @@ export class ChainlinkController {
   @Get('candles')
   async candles(@Query('token') token: string,
     @Query('period') period,
-    @Query('limit') limit
+    @Query('limit') limit,
+    @Query('gap') gap
   ): Promise<string> {
     const st = new Date().getTime();
     if(!token || !period || !limit) {
@@ -35,7 +36,7 @@ export class ChainlinkController {
     }
     limit = parseInt(limit);
 
-    const candles = await this.chainlinkService.getCandles(token, period, limit);
+    const candles = await this.chainlinkService.getCandles(token, period, limit, gap);
     let jsonText = JSON.stringify(candles);
     this.logger.log(`Get candles: ${(new Date().getTime() - st) / 1000} s costed.`);
     return jsonText;
@@ -56,5 +57,18 @@ export class ChainlinkController {
      const prices = await this.chainlinkService.get24hPrices(token);
      this.logger.log(`Get prices24: ${(new Date().getTime() - st) / 1000} s costed.`);
      return prices;
+   }
+
+   @Get('tokendetail')
+   async tokendetail(@Query('token') token: string
+   ) {
+    const st = new Date().getTime();
+     if(!token) {
+       return 'error';
+     }
+ 
+     const detail = await this.chainlinkService.getTokenInfo(token);
+     this.logger.log(`Get prices24: ${(new Date().getTime() - st) / 1000} s costed.`);
+     return detail;
    }
 }
