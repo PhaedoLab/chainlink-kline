@@ -29,7 +29,7 @@ export class GraphController {
 
   @Get('volume24')
   async volume24(): Promise<any> {
-    const vol24 = await this.graphService.getVolume24();
+    const vol24 = await this.graphService.getVolume24(true);
     return {
       value: vol24,
     };
@@ -120,5 +120,11 @@ export class GraphController {
     this.logger.log(`Ledger: ${ledger}, Account: ${account}.`);
     const liqs = await this.graphService.getLiquidations(ledger, num, account);
     return liqs;
+  }
+
+  @Get('metrics')
+  async metrics(): Promise<any> {
+    const mets = await this.graphService.getMetrics();
+    return mets;
   }
 }

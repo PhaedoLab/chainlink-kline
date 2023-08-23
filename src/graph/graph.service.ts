@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { execute } from '../../.graphclient'
 import { BigNumber } from "ethers";
+import { Cron, Interval } from '@nestjs/schedule';
+import { Collateral, USDStacked } from './graph.entiry';
+import { InjectRepository } from '@nestjs/typeorm';
+import { InsertResult, Repository } from 'typeorm';
+import { EthereumService } from 'src/liquidation/ethereum.service';
 
 interface Counter {
   count: number,
@@ -14,7 +19,13 @@ export class GraphService {
   private readonly LIQUIDATION = 'liquidation';
   private readonly TRADE = 'trade';
 
-  constructor() {
+  constructor(
+    @InjectRepository(USDStacked)
+    private usdRepository: Repository<USDStacked>,
+    @InjectRepository(Collateral)
+    private collateralRepository: Repository<Collateral>,
+    private readonly ethereumService: EthereumService
+  ) {
     this.counters = new Map<string, Counter>();
   }
 
@@ -357,12 +368,12 @@ export class GraphService {
     const vfs = result.data?.volumeFees;
     if(vfs && vfs.length > 0) {
       const val = volume? vfs[0].vol.toString(): vfs[0].fee.toString();
-      return this.divDecimal(val);
+      return volume? this.divDecimal(val): val;
     }
     return 0;
   }
 
-  async getVolume24() {
+  async getVolume24(qvol: boolean) {
     const myQuery = `
       query pairs {
         volumeFees(orderBy: date, orderDirection: desc, first: 25, where: { ledger: -1 }) {
@@ -389,7 +400,7 @@ export class GraphService {
           totalVol = vf;
           continue;
         }
-        if(vf.date <= last25Hour) {
+        if(vf.date > last25Hour) {
           // const bigint = BigNumber.from(vf.vol);
           // total = total.add(bigint.div(decials));
           console.log(vf);
@@ -399,10 +410,59 @@ export class GraphService {
     }
     const decials = BigNumber.from(10).pow(18);
     if(vols.length === 0) {
-      return !totalVol? BigNumber.from(0).toString(): BigNumber.from(totalVol.vol).div(decials).toString();
+      return '0';
     }
     const end = totalVol;
     const start = vols[0];
+    let total: BigNumber;
+    if(qvol) {
+      total = BigNumber.from(end.vol).sub(BigNumber.from(start.vol)).div(decials);
+    } else {
+      total = BigNumber.from(end.fee).sub(BigNumber.from(start.fee)).div(decials);
+    }
+
+    return total.toString();
+  }
+
+  async _getTVL24() {
+    const myQuery = `
+      query pairs {
+        tvls(orderBy: date, orderDirection: desc, first: 25) {
+          id
+          date
+          amount
+        }
+      }
+    `
+    const key = `CUMULATED_KEY`;
+
+    const result = await execute(myQuery, {})
+    const tvls = result.data?.tvls;
+    const lastHour = this.lastNHourFormat(1);
+    const last25Hour = this.lastNHourFormat(25);
+    let usefulTvls = [];
+    let totalTvl: any;
+    if(tvls) {
+      console.log(lastHour, last25Hour, tvls.length);
+      for(const vf of tvls) {
+        if(vf.date === key) {
+          totalTvl = vf;
+          continue;
+        }
+        if(vf.date > last25Hour) {
+          // const bigint = BigNumber.from(vf.vol);
+          // total = total.add(bigint.div(decials));
+          console.log(vf);
+          usefulTvls.push(vf);
+        }
+      }
+    }
+    const decials = BigNumber.from(10).pow(18);
+    if(usefulTvls.length === 0) {
+      return '0';
+    }
+    const end = totalTvl;
+    const start = usefulTvls[0];
     const total = BigNumber.from(end.vol).sub(BigNumber.from(start.vol)).div(decials);
 
     return total.toString();
@@ -576,5 +636,149 @@ export class GraphService {
     const liquidations = result.data?.liquidations;
     
     return liquidations.length;
+  }
+
+  async _getTraders() {
+    const timestamp = Math.round(Date.now()/1000);
+    let usds = await this.findUSDStacked(timestamp);
+    let users = usds.map((usd: USDStacked) => usd.user);
+    const totalUser = new Set(users).size;
+
+    usds = await this.findUSDStacked(timestamp - 3600 * 24);
+    users = usds.map((usd: USDStacked) => usd.user);
+    const lastUsers = new Set(users).size;
+    return {
+      traders: totalUser,
+      traders24: totalUser - lastUsers
+    };
+  }
+
+  async _getCollateral() {
+    const balance = await this.ethereumService.getBalanceOf();
+    
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1); // 获取昨天的日期
+    yesterday.setMinutes(0);
+    yesterday.setSeconds(0);
+    yesterday.setMilliseconds(0);
+
+    // 获取整小时的时间戳（以秒为单位）
+    const timestamp = Math.floor(yesterday.getTime() / 1000);
+
+    const coll = await this.findColleteral(timestamp);
+    const amount = coll? coll.amount: balance;
+    return {
+      coll: balance,
+      coll24: BigNumber.from(balance).sub(BigNumber.from(amount)).toString()
+    }
+  }
+
+  async getMetrics() {
+    const traders = await this._getTraders();
+    const collaterals = await this._getCollateral();
+    const tvl = {
+      'tvl24': await this._getTVL24(),
+      'tvl': await this.getTlocked()
+    };
+    const vol = {
+      'vol24': await this.getVolume24(true),
+      'vol': await this.getTvolumeFee(true)
+    }
+    const fee = {
+      'fee24': await this.getVolume24(false),
+      'fee': await this.getTvolumeFee(false)
+    }
+    return {
+      trader: traders,
+      coll: collaterals,
+      tvl: tvl,
+      vol: vol,
+      fee
+    }
+  }
+
+  /**
+   * mysql oprations
+   */
+
+  findUSDStacked(timestamp: number): Promise<USDStacked[]> {
+    return this.usdRepository
+      .createQueryBuilder('usd')
+      .where(`usd.timestamp < :timestamp`, 
+        { timestamp: timestamp })
+      .getMany();
+  }
+
+  findLastestUSDStacked(): Promise<USDStacked> {
+    return this.usdRepository
+      .createQueryBuilder('usd')
+      .orderBy('usd.timestamp', 'DESC')
+      .getOne();
+  }
+
+  insertManyEmails(usds: USDStacked[]): Promise<InsertResult> {
+    return this.usdRepository.insert(usds);
+  }
+
+  insertManyCollateral(colls: Collateral[]): Promise<InsertResult> {
+    return this.collateralRepository.insert(colls);
+  }
+
+  findColleteral(timestamp: number): Promise<Collateral> {
+    return this.collateralRepository
+      .createQueryBuilder('coll')
+      .where(`coll.timestamp = :timestamp`, 
+        { timestamp: timestamp })
+      .getOne();
+  }
+
+  @Cron('* 0 * * * *')
+  async callJungleCollateral() {
+    const balance = await this.ethereumService.getBalanceOf();
+    const collateral: Collateral = new Collateral();
+    collateral.amount = balance;
+    const now = new Date();
+    now.setMinutes(0);
+    now.setSeconds(0);
+    now.setMilliseconds(0);
+
+    // 获取整小时的时间戳（以秒为单位）
+    const timestamp = Math.floor(now.getTime() / 1000);
+
+    collateral.timestamp = `${timestamp}`;
+    this.insertManyCollateral([collateral]);
+  }
+
+  // call 
+  @Cron('0 * * * * *')
+  async callTheGraph() {
+    const usd = await this.findLastestUSDStacked();
+    const timestamp = usd? usd.timestamp: 0;
+
+    const myQuery = `
+      query usds {
+        usdstackeds(where: {timestamp_gt: ${timestamp}}) {
+          id
+          user
+          amount
+          mint
+          timestamp
+        }
+      }
+    `
+    console.log(myQuery);
+
+    const result = await execute(myQuery, {})
+    const usdstackeds = result.data?.usdstackeds;
+    const usds = usdstackeds.map((usd) => {
+      const usdClass: USDStacked = new USDStacked();
+      usdClass.user = usd.user;
+      usdClass.amount = usd.amount;
+      usdClass.mint = usd.mint? 1: 0;
+      usdClass.timestamp = usd.timestamp;
+      return usdClass;
+    });
+    await this.insertManyEmails(usds);
   }
 }

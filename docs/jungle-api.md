@@ -769,6 +769,54 @@ GET方式，须带上http请求头
 ```
 
 
+## 15. Metrics
+
+### URL
+- http://ip:port/api/v1/base/metrics
+
+### 请求格式
+
+GET方式，须带上http请求头
+
+**http请求头**
+
+| HTTP header  | 必选 | 说明             |
+| ------------ | ---- | ---------------- |
+| Content-Type | 是   | application/json |
+
+
+### 返回值
+**返回样例**
+
+```
+{
+    "data":{
+        "trader":{
+            "traders":9,
+            "traders24":0
+        },
+        "coll":{
+            "coll":"14564671165186229599889",
+            "coll24":"0"
+        },
+        "tvl":{
+            "tvl24":"0",
+            "tvl":"205287000000000000000000"
+        },
+        "vol":{
+            "vol24":"0",
+            "vol":"24055758230149888626999"
+        },
+        "fee":{
+            "fee24":"0",
+            "fee":"24055758230149888598"
+        }
+    },
+    "code":0,
+    "message":"ok"
+}
+```
+
 
 
 # Contract API

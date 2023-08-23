@@ -9,7 +9,7 @@ import * as crypto from 'crypto';
 import { Account } from 'aws-sdk';
 
 const sesClient = new SESClient({ region: 'us-west-1' });
-const createSendEmailCommand = (toAddress, fromAddress) => {
+const createSendEmailCommand = (toAddress, fromAddress, account, code) => {
   return new SendEmailCommand({
     Destination: {
       /* required */
@@ -27,16 +27,16 @@ const createSendEmailCommand = (toAddress, fromAddress) => {
         /* required */
         Html: {
           Charset: "UTF-8",
-          Data: "Welcome to JungleFi!",
+          Data: `Click this url to verify: https://main.d7u2msnczqldy.amplifyapp.com?account=${account}&code=${code}`,
         },
         Text: {
           Charset: "UTF-8",
-          Data: "Welcome to JungleFi!",
+          Data: `Click this url to verify: https://main.d7u2msnczqldy.amplifyapp.com?account=${account}&code=${code}`,
         },
       },
       Subject: {
         Charset: "UTF-8",
-        Data: "Register Success!",
+        Data: "Verify your email address",
       },
     },
     Source: fromAddress,
@@ -155,14 +155,21 @@ export class BaseService {
   }
 
   async registe(email: string, account: string, general: number, trading: number) {
-    const jMails: JEmails = new JEmails();
+    let jMails: JEmails = await this.findBundleJEmails(account);
+    if(jMails) {
+      return {
+        code: 800,
+        msg: 'account already exists'
+      }
+    }
+    jMails = new JEmails();
     jMails.account = account;
     jMails.email = email;
     jMails.general = general;
     jMails.trading = trading;
     jMails.code = crypto.createHash('sha256').update(email+Date.now()).digest('hex').substring(0, 50);;
     this.insertManyJEmails([jMails]);
-    return this._sendEmail(email, 'osubscription');
+    return this.sendJEmail(email, account, jMails.code);
   }
 
   async updateEmail(email: string, account: string, general: number, trading: number) {
@@ -173,7 +180,7 @@ export class BaseService {
       jMails.trading = trading;
       jMails.code = crypto.createHash('sha256').update(email+Date.now()).digest('hex');
       this.updateManyJEmails(jMails);
-      return this._sendEmail(email, 'osubscription');
+      return this.sendJEmail(email, account, jMails.code);
     } else {
       jMails = new JEmails();
       jMails.account = account;
@@ -182,7 +189,7 @@ export class BaseService {
       jMails.trading = trading;
       jMails.code = crypto.createHash('sha256').update(email+Date.now()).digest('hex');
       this.insertManyJEmails([jMails]);
-      return this._sendEmail(email, 'osubscription');
+      return this.sendJEmail(email, account, jMails.code);
     }
   }
 
@@ -228,6 +235,31 @@ export class BaseService {
     }
   }
 
+  async sendJEmail(recepient: string, account: string, code: string) {
+    const sendEmailCommand = createSendEmailCommand(
+      recepient,
+      "official@jungle.exchange",
+      account, code
+    );
+  
+    try {
+      const res = await sesClient.send(sendEmailCommand);
+      return {
+        code: res.$metadata.httpStatusCode,
+        msg: 'ok'
+      };
+    } catch (e) {
+      console.error("Failed to send email.");
+      console.error(Object.keys(e));
+      console.error(e.message);
+      console.error(e.Code);
+      return {
+        code: e.$metadata.httpStatusCode,
+        msg: e?.message
+      };
+    }
+  }
+
   async sendEmail(recepient: string) {
     this._sendEmail(recepient, 'osubscription');
   }
@@ -241,10 +273,6 @@ export class BaseService {
   
     try {
       const res = await sesClient.send(sendEmailCommand);
-      const email: Emails = new Emails();
-      email.account = recepient;
-      email.email = recepient;
-      this.insertManyEmails([email]);
       return {
         code: res.$metadata.httpStatusCode,
         msg: 'ok'
