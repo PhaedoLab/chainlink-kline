@@ -772,7 +772,7 @@ GET方式，须带上http请求头
 ## 15. Metrics
 
 ### URL
-- http://ip:port/api/v1/base/metrics
+- http://ip:port/api/v1/graph/metrics
 
 ### 请求格式
 
