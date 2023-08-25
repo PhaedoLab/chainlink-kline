@@ -28,3 +28,25 @@ curl -H "Content-Type: application/json" -X POST -d '{"account": "1234", "code":
 参数
 account: 钱包地址
 curl 'http://statistic.enchanter.fi/api/v1/base/getemail?account=1234'
+
+
+## 开仓时发送邮件
+参数
+email：邮箱地址
+poolname: 资产池
+timestamp: 开仓时间戳，单位是ms级别
+amount: 开仓资产数量
+name: 开仓资产名称
+
+curl -H "Content-Type: application/json" -X POST -d '{"poolname": "1234", "email": "faria.chen@ingroup.chat", "timestamp": "1691736488000", "amount": "100", "name": "ETH" }' 'http://statistic.enchanter.fi/api/v1/base/eoepn'
+
+
+## 平仓时发送邮件
+参数
+email：邮箱地址
+poolname: 资产池
+timestamp: 开仓时间戳，单位是ms级别
+amount: 平仓资产数量
+name: 平仓资产名称
+
+curl -H "Content-Type: application/json" -X POST -d '{"poolname": "1234", "email": "faria.chen@ingroup.chat", "timestamp": "1691736488000", "amount": "100", "name": "ETH" }' 'http://statistic.enchanter.fi/api/v1/base/eclose'
