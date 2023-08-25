@@ -66,9 +66,8 @@ export class ChainlinkController {
      if(!token) {
        return 'error';
      }
- 
      const detail = await this.chainlinkService.getTokenInfo(token);
-     this.logger.log(`Get prices24: ${(new Date().getTime() - st) / 1000} s costed.`);
-     return detail;
+    this.logger.log(`Get prices24: ${(new Date().getTime() - st) / 1000} s costed.`);
+    return detail;
    }
 }

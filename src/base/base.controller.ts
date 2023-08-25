@@ -5,6 +5,14 @@ export class EmailDto {
   recepient: string;
 }
 
+export class EmailOpenCloseDto {
+  email: string;
+  poolname: string;
+  timestamp: string;
+  amount: string;
+  name: string;
+}
+
 export class JEmailDto {
   account: string;
   email: string;
@@ -133,6 +141,16 @@ export class BaseController {
       const data = this.baseService.sendEmail(emailDto.recepient);
       return data;
     }
+  
+    /**
+   * get community urls like: discord telegram twitter
+   * ETC: curl 'http://127.0.0.1:3002/api/v1/base/send_gemail'
+   */
+   @Get('send_gemail')
+   async sendGEmail(): Promise<any> {
+     const data = this.baseService.notifyAllVerifiedEmails();
+     return data;
+   }
     
     /**
    * get community urls like: discord telegram twitter
@@ -141,6 +159,38 @@ export class BaseController {
     @Get('tokens')
     async tokens(): Promise<any> {
       const data = this.baseService.tokens();
+      return data;
+    }
+    
+     /**
+   * get community urls like: discord telegram twitter
+   * ETC: curl 'http://127.0.0.1:3002/api/v1/base/eoepn'
+   */
+    @Post('eoepn')
+    async oepn(@Body() emailDto: EmailOpenCloseDto): Promise<any> {
+      const data = this.baseService.open(
+        emailDto.email,
+        emailDto.poolname,
+        emailDto.timestamp,
+        emailDto.amount,
+        emailDto.name
+      );
+      return data;
+    }
+
+     /**
+   * get community urls like: discord telegram twitter
+   * ETC: curl 'http://127.0.0.1:3002/api/v1/base/eclose'
+   */
+    @Post('eclose')
+    async close(@Body() emailDto: EmailOpenCloseDto): Promise<any> {
+      const data = this.baseService.close(
+        emailDto.email,
+        emailDto.poolname,
+        emailDto.timestamp,
+        emailDto.amount,
+        emailDto.name
+      );
       return data;
     }
 }

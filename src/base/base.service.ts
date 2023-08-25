@@ -9,7 +9,7 @@ import * as crypto from 'crypto';
 import { Account } from 'aws-sdk';
 
 const sesClient = new SESClient({ region: 'us-west-1' });
-const createSendEmailCommand = (toAddress, fromAddress, account, code) => {
+const createSendEmailCommand = (toAddress, fromAddress, content, subject) => {
   return new SendEmailCommand({
     Destination: {
       /* required */
@@ -27,16 +27,16 @@ const createSendEmailCommand = (toAddress, fromAddress, account, code) => {
         /* required */
         Html: {
           Charset: "UTF-8",
-          Data: `Click this url to verify: https://main.d7u2msnczqldy.amplifyapp.com?account=${account}&code=${code}`,
+          Data: content,
         },
         Text: {
           Charset: "UTF-8",
-          Data: `Click this url to verify: https://main.d7u2msnczqldy.amplifyapp.com?account=${account}&code=${code}`,
+          Data: content,
         },
       },
       Subject: {
         Charset: "UTF-8",
-        Data: "Verify your email address",
+        Data: subject,
       },
     },
     Source: fromAddress,
@@ -98,6 +98,14 @@ export class BaseService {
    * Mysql JEmails operation
    */
 
+  findVerifiedJEmails(): Promise<JEmails[]> {
+    return this.jemailsRepository
+      .createQueryBuilder('email')
+      .where(`email.verify = :verify`, 
+        { verify: 1 })
+      .getMany();
+  }
+
   findBundleJEmails(account: string): Promise<JEmails> {
     return this.jemailsRepository
       .createQueryBuilder('email')
@@ -154,6 +162,39 @@ export class BaseService {
     }
   }
 
+  async notifyAllVerifiedEmails() {
+    const emails = await this.findVerifiedJEmails();
+    for(let i = 0; i < emails.length; i++) {
+      const email = emails[i];
+      this._sendJEmail(email.email, `General Notification from Jungle Protocol.`, 'General Notification');
+      console.log(`Send ${email.email} success!`);
+    }
+  }
+
+  /**
+   * Jungle open/close/liquidation sending email
+   */
+  async open(email: string, poolName: string, timestamp: string, amount: string, name: string) {
+    const content = `You just opened position in ${poolName} debt pool at ${timestamp}. Transaction Details: ${amount} ${name}`;
+    this._sendJEmail(email, content, 'Open Position');
+  }
+
+  async close(email: string, poolName: string, timestamp: string, amount: string, name: string) {
+    const content = `You just closed position in ${poolName} debt pool at ${timestamp}. Transaction Details: ${amount} ${name}`;
+    this._sendJEmail(email, content, 'Close Position');
+  }
+
+  async liquidation(email: string, poolName: string, timestamp: string) {
+    const content = `Your position in ${poolName} debt pool was liquidated at ${timestamp}`;
+    this._sendJEmail(email, content, 'Liquidation');
+  }
+
+  async warning(email: string, poolName: string) {
+    const content = `Your position in ${poolName} debt pool is closed to be liquidated.`;
+    this._sendJEmail(email, content, 'Liquidation Warning');
+  }
+
+
   async registe(email: string, account: string, general: number, trading: number) {
     let jMails: JEmails = await this.findBundleJEmails(account);
     if(jMails) {
@@ -175,12 +216,26 @@ export class BaseService {
   async updateEmail(email: string, account: string, general: number, trading: number) {
     let jMails: JEmails = await this.findBundleJEmails(account);
     if(jMails) {
-      jMails.email = email;
-      jMails.general = general;
-      jMails.trading = trading;
       jMails.code = crypto.createHash('sha256').update(email+Date.now()).digest('hex');
-      this.updateManyJEmails(jMails);
-      return this.sendJEmail(email, account, jMails.code);
+      if(jMails.email === email) {
+        jMails.general = general;
+        jMails.trading = trading;
+        this.updateManyJEmails(jMails);
+        return {
+          code: 900,
+          msg: 'ok'
+        };
+      } else {
+        jMails = new JEmails();
+        jMails.account = account;
+        jMails.email = email;
+        jMails.general = general;
+        jMails.trading = trading;
+        jMails.code = crypto.createHash('sha256').update(email+Date.now()).digest('hex');
+        jMails.verify = 0;
+        this.updateManyJEmails(jMails);
+        return this.sendJEmail(email, account, jMails.code);
+      }
     } else {
       jMails = new JEmails();
       jMails.account = account;
@@ -236,10 +291,15 @@ export class BaseService {
   }
 
   async sendJEmail(recepient: string, account: string, code: string) {
+    const content = `Click this url to verify: https://main.d7u2msnczqldy.amplifyapp.com?account=${account}&code=${code}`
+    return this._sendJEmail(recepient, content, "Verify your email address");
+  }
+
+  async _sendJEmail(recepient: string, content: string, subject: string) {
     const sendEmailCommand = createSendEmailCommand(
       recepient,
       "official@jungle.exchange",
-      account, code
+      content, subject
     );
   
     try {
@@ -267,7 +327,7 @@ export class BaseService {
   async _sendEmail(recepient: string, template: string) {
     const sendEmailCommand = createSendTemplatedEmailCommand(
       recepient,
-      "support@jungle.exchange",
+      "official@jungle.exchange",
       template
     );
   
