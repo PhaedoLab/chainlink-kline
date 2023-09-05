@@ -3,7 +3,7 @@ from botocore.exceptions import ClientError
 
 # Replace sender@example.com with your "From" address.
 # This address must be verified with Amazon SES.
-SENDER = "support@ingroup.chat"
+SENDER = "official@ingroup.chat"
 
 # Replace recipient@example.com with a "To" address. If your account 
 # is still in the sandbox, this address must be verified.
@@ -35,7 +35,7 @@ BODY_HTML = """<html>
   <p>This email was sent with
     <a href='https://aws.amazon.com/ses/'>Amazon SES</a> using the
     <a href='https://aws.amazon.com/sdk-for-python/'>
-      AWS SDK for Python (Boto)</a>.</p>
+      AWS SDK for Python (Boto) {{name}}</a>.</p>
 </body>
 </html>
             """            
@@ -48,61 +48,117 @@ client = boto3.client('ses',region_name=AWS_REGION)
 
 # Try to send the email.
 try:
-    # #Provide the contents of the email.
-    # response = client.send_email(
-    #     Destination={
-    #         'ToAddresses': [
-    #             RECIPIENT,
-    #         ],
-    #     },
-    #     Message={
-    #         'Body': {
-    #             'Html': {
-    #                 'Charset': CHARSET,
-    #                 'Data': BODY_HTML,
-    #             },
-    #             'Text': {
-    #                 'Charset': CHARSET,
-    #                 'Data': BODY_TEXT,
-    #             },
-    #         },
-    #         'Subject': {
-    #             'Charset': CHARSET,
-    #             'Data': SUBJECT,
-    #         },
-    #     },
-    #     Source=SENDER,
-    #     # If you are not using a configuration set, comment or delete the
-    #     # following line
-    #     # ConfigurationSetName=CONFIGURATION_SET,
-    # )
-    content = open('test2.html').read()
-    response = client.create_template(
-        Template={
-            'TemplateName': 'osubscription',
-            'SubjectPart': 'Welcome to Jungle Protocol!',
-            'TextPart': 'Welcome to Jungle Protocol!',
-            'HtmlPart': content
-        }
-    )
-    print(response)
-
-    # response = client.get_template(
-    #     TemplateName='Welcome'
+    # content = open('emailt/official.html').read()
+    # response = client.create_template(
+    #     Template={
+    #         'TemplateName': 'welcome',
+    #         'SubjectPart': 'Welcome to Jungle Protocol',
+    #         'TextPart': 'Welcome to Jungle Protocol',
+    #         'HtmlPart': content
+    #     }
     # )
     # print(response)
 
+    # content = open('emailt/verify.html').read()
+    # response = client.create_template(
+    #     Template={
+    #         'TemplateName': 'verify',
+    #         'SubjectPart': 'Verify Email Address',
+    #         'TextPart': 'Verify Email Address',
+    #         'HtmlPart': content
+    #     }
+    # )
+    # print(response)
+
+    # content = open('emailt/trade-template.html').read()
+    # response = client.create_template(
+    #     Template={
+    #         'TemplateName': 'open-position',
+    #         'SubjectPart': 'Open Position',
+    #         'TextPart': 'Open Position',
+    #         'HtmlPart': content
+    #     }
+    # )
+    # print(response)
+
+    # content = open('emailt/trade-template.html').read()
+    # response = client.create_template(
+    #     Template={
+    #         'TemplateName': 'close-position',
+    #         'SubjectPart': 'Close Position',
+    #         'TextPart': 'Close Position',
+    #         'HtmlPart': content
+    #     }
+    # )
+    # print(response)
+
+    # content = open('emailt/trade-template.html').read()
+    # response = client.create_template(
+    #     Template={
+    #         'TemplateName': 'liqui',
+    #         'SubjectPart': 'Liquidation',
+    #         'TextPart': 'Liquidation',
+    #         'HtmlPart': content
+    #     }
+    # )
+    # print(response)
+
+    # content = open('emailt/trade-template.html').read()
+    # response = client.create_template(
+    #     Template={
+    #         'TemplateName': 'liqui-warning',
+    #         'SubjectPart': 'Liquidation Warning',
+    #         'TextPart': 'Liquidation Warning',
+    #         'HtmlPart': content
+    #     }
+    # )
+    # print(response)
+
+    # response = client.send_templated_email(
+    #     Source=SENDER,
+    #     Destination={
+    #         'ToAddresses': [
+    #             RECIPIENT,
+    #             # 'qinghua.yang@ingroup.chat',
+    #             # 'nicolas.kong@ingroup.chat'
+    #         ]
+    #     },
+    #     Template='welcome',
+    #     TemplateData='{"official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/", "app_url": "https://main.d7u2msnczqldy.amplifyapp.com/"}'
+    # )
+
+    # response = client.send_templated_email(
+    #     Source=SENDER,
+    #     Destination={
+    #         'ToAddresses': [
+    #             RECIPIENT,
+    #             # 'qinghua.yang@ingroup.chat',
+    #             # 'nicolas.kong@ingroup.chat'
+    #         ]
+    #     },
+    #     Template='verify',
+    #     TemplateData='{"official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/", "app_url": "https://main.d7u2msnczqldy.amplifyapp.com/"}'
+    # )
     response = client.send_templated_email(
         Source=SENDER,
         Destination={
             'ToAddresses': [
                 RECIPIENT,
+                # 'qinghua.yang@ingroup.chat',
+                # 'nicolas.kong@ingroup.chat'
             ]
         },
-        Template='osubscription',
-        TemplateData='{}'
+        Template='liqui',
+        TemplateData='{"official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/", "title": "title", "content": "content"}'
     )
     print(response)
+
+    # templates = client.list_templates()
+    # for template in templates['TemplatesMetadata']:
+    #     name = template['Name']
+    #     print(name)
+    #     client.delete_template(TemplateName=name)
+    
 # Display an error if something goes wrong.	
 except ClientError as e:
     print(e.response['Error']['Message'])

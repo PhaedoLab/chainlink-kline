@@ -4,8 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Document</title>
-  <style>
-
+  <style>    
 @font-face {
   font-family: 'Poppins';
   font-style: normal;
@@ -71,10 +70,7 @@
   background-size: 375px 408px;
   background-repeat:  repeat-x 0 0;
   min-height: 100vh;
-  background-color: #111;  
-}
-.verify-page .c-p {
-  cursor: pointer;
+  background-color: #111;   
 }
 .verify-page a {
   color: inherit;
@@ -114,33 +110,33 @@
 .verify-page .b-b {
   box-sizing: border-box;
 }
-.top-bar img {
+.verify-page .c-p {
+  cursor: pointer;
+}
+.verify-page .top-bar img {
   width: 146px;
   height: 33px;
 }
-.title {
+.verify-page .title {
   padding-top: 80px;
 }
-.c-title {
+.verify-page .c-title {
   font-size: 24px;
   color: #fff;
 }
-.c-desc {
-  padding-top: 24px;
+.verify-page .c-desc {
+  padding-top: 16px;
   font-size: 14px;
   color: #ccc;
-  line-height: 24px;
 }
 .verify-page .jungle-btn-wrapper {
   padding-top: 60px;
-  display: flex;
-  justify-content: center;
 }
 .verify-page .jungle-btn {
   width: 180px;
   height: 48px;
   line-height: 48px;
-  padding: 0 20px;
+  padding: 0 40px;
   border-radius: 24px;
   background: #1DDF63;
   box-sizing: border-box;
@@ -150,42 +146,36 @@
   font-style: normal;
   font-weight: 400;
 }
-.community-list {
+.verify-page .community-list {
   margin-top: 120px;
   padding-bottom: 24px;
   border-bottom: 1px solid rgba(119, 119, 119, 0.5);
 }
-.list-item {
+.verify-page .list-item {
   width: 24px;
   height: 24px;
 }
-.list-item img{
+.verify-page .list-item img{
   width: 100%!important;
   height: 100%!important;
 }
-.list-item + .list-item {
+.verify-page .list-item + .list-item {
   margin-left: 28px;
 }
-.footer {
+.verify-page .footer {
   padding-top: 24px;
   font-size: 12px;
   line-height: 19px;
   font-weight: 400;
   color: #777;
 }
-.footer-sub-desc {
+.verify-page .footer-sub-desc {
   margin-top: 24px;
 }
-.unsubscribe {
+.verify-page .unsubscribe {
   color: #1DDF63;
   font-family: Inter;
   text-decoration-line: underline;
-}
-.desc-ul {
-  padding-top: 5px;
-}
-.desc-text + .desc-text {
-  padding-top: 22px;
 }
 .verify-content {
   padding: 77px 0;
@@ -198,6 +188,7 @@
   }
 }
 
+
   </style>
 </head>
 <body>
@@ -207,35 +198,11 @@
         <img src="https:jungle-nft.s3.us-west-1.amazonaws.com/email/logo.png" alt="Jungle Protocol"/>
       </div>
       <div class='title'>
-        <p class='c-title'>Thank you for your interest! </p>
-        <div class='c-desc num'>
-          <p class='desc-text'>
-          Dear Adventurous Traders,
-          </p>
-          <p class='desc-text'>
-          We are thrilled to extend our warmest welcome to you as we prepare to launch the much-anticipated derivatives trading protocol, Jungle! 🌟 Get ready for a wild ride of innovative trading opportunities and thrilling adventures in the world of decentralized finance.
-          </p>
-          <p class='desc-text'>
-          👀What to Expect:
-          </p>
-          <div class='desc-ul'>
-            <li>Insider News: Stay in the loop with behind-the-scenes glimpses, product updates, and collaboration announcements.</li>
-            <li>Community Involvement: We love hearing from you! Feel free to share your thoughts, feedback, and suggestions – your voice matters.</li>
-          </div>
-          <p class='desc-text'>
-          To ensure you receive our emails, please add official@jungle.exchange to your contact list. Sometimes, emails can end up in the spam folder by mistake.
-          </p>
-          <p class='desc-text'>
-          Buckle up for the thrill of Jungle trading and witness your journey unfold in the heart of DeFi's untamed terrain!
-          </p>
-          <div class='desc-text'>
-            <p>Best Regards,</p>
-            <p>The Jungle Team 🌿🦓</p>
-          </div>
-        </div>
+        <p class='c-title'>Verify Email Address</p>
+        <p class='c-desc'>You'll need to verify your email address to start receiving notifications. You can change your email and notification settings anytime in the app.</p>
       </div>
       <div class='jungle-btn-wrapper'>
-        <a style="display: inline-block;" class="jungle-btn c-p" href="https://main.d7u2msnczqldy.amplifyapp.com/">Start Trading</a>
+        <a style="display: inline-block;" href="{{url}}" class="jungle-btn c-p">Verify</a>
       </div>
       <div class='community-list flex'> 
         <a href="https://twitter.com/jungle_exchange" class='list-item c-p'>
@@ -256,7 +223,7 @@
       </div>
       <div class='footer'>
         <div class='footer-desc'>Disclaimer: The information shared here serves for general enlightenment and entertainment purposes only. While we're all about financial adventures, remember to tread with caution and consult the wise sages before making any binding decisions.</div>
-        <div class='footer-sub-desc'>No longer in love with trading? <a class='unsubscribe num' href="">Unsubscribe.</a></div>
+        <!-- <div class='footer-sub-desc'>No longer in love with trading? <a class='unsubscribe num' href="">Unsubscribe.</a></div> -->
       </div>
     </div>
   </div>

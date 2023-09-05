@@ -7,6 +7,7 @@ export class EthereumService {
   private wallet: ethers.Wallet;
   private contract: ethers.Contract;
   private erc20: ethers.Contract;
+  private jungleWrapper: ethers.Contract;
   private contractAddr: string;
 
   private ABI = [
@@ -20,6 +21,10 @@ export class EthereumService {
     "function balanceOf(address account) external view returns (uint256)",
   ];
 
+  private jungelWrapperABI = [
+    "function allLedgers() external view returns(uint[] memory,string[] memory,uint[] memory,bool[] memory,uint8[][] memory)",
+  ];
+
   constructor() {
     const rpc = 'https://arb-goerli.g.alchemy.com/v2/Py17iqVe0nh_q0XwUWvXoQiRqVjarG0M';
     this.provider = new ethers.providers.JsonRpcProvider(rpc);
@@ -30,6 +35,19 @@ export class EthereumService {
 
     const jusdAddr = '0xD35cF3B60ef47932493fDa61BA6553dbc1BBB70b';
     this.erc20 = new ethers.Contract(jusdAddr, this.erc20ABI, this.wallet);
+
+    const wrapperContract = '0xeB51d8B19CccD9eD15a1f6B8312cb2ceF0059e58';
+    this.jungleWrapper = new ethers.Contract(wrapperContract, this.jungelWrapperABI, this.wallet);
+  }
+
+  async allLedgers() {
+    let ledgers: any;
+    try {
+      ledgers = await this.jungleWrapper.allLedgers();
+    } catch(error) {
+      console.log(error);
+    }
+    return ledgers;
   }
 
   async getBalanceOf() {
@@ -76,9 +94,11 @@ export class EthereumService {
     try{
       console.log(`liquidating user: ${ledger} ${user}.`);
       await this.contract.liquidation(ledger, user);
+      return true;
     } catch(error) {
       console.log(`liquidation user: ${ledger} ${user} failed.`);
       console.log(error);
+      return false;
     }
   }
 }

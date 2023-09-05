@@ -6,6 +6,7 @@ export class EmailDto {
 }
 
 export class EmailOpenCloseDto {
+  account: string;
   email: string;
   poolname: string;
   timestamp: string;
@@ -169,6 +170,7 @@ export class BaseController {
     @Post('eoepn')
     async oepn(@Body() emailDto: EmailOpenCloseDto): Promise<any> {
       const data = this.baseService.open(
+        emailDto.account,
         emailDto.email,
         emailDto.poolname,
         emailDto.timestamp,
@@ -185,6 +187,7 @@ export class BaseController {
     @Post('eclose')
     async close(@Body() emailDto: EmailOpenCloseDto): Promise<any> {
       const data = this.baseService.close(
+        emailDto.account,
         emailDto.email,
         emailDto.poolname,
         emailDto.timestamp,

@@ -2,10 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { execute } from '../../.graphclient'
 import { BigNumber } from "ethers";
 import { Cron, Interval } from '@nestjs/schedule';
-import { Collateral, USDStacked } from './graph.entiry';
+import { Collateral, USDStacked, Trade } from './graph.entiry';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InsertResult, Repository } from 'typeorm';
 import { EthereumService } from 'src/liquidation/ethereum.service';
+import { BaseService } from 'src/base/base.service';
 
 interface Counter {
   count: number,
@@ -24,6 +25,8 @@ export class GraphService {
     private usdRepository: Repository<USDStacked>,
     @InjectRepository(Collateral)
     private collateralRepository: Repository<Collateral>,
+    @InjectRepository(Trade)
+    private tradeRepository: Repository<Trade>,
     private readonly ethereumService: EthereumService
   ) {
     this.counters = new Map<string, Counter>();
@@ -78,25 +81,6 @@ export class GraphService {
     for(const trade of trades) {
       trade.totalVal = this.divDecimal(trade.totalVal);
     }
-
-    // const key = `${this.TRADE}-${ledger}-${account}`;
-    // if(this.counters.has(key)) {
-    //   const counter = this.counters.get(key);
-    //   const timestamp = counter.timestamp;
-    //   const now = new Date().getTime();
-    //   const duration = (now - timestamp) / 1000;
-    //   if(duration > 30 * 60) {
-    //     const count = await this._getHistoryCount(ledger, account);
-    //     const newCounter: Counter = {count, timestamp: now};
-    //     this.counters.set(key, newCounter);
-    //   }
-    // } else {
-    //   const count = await this._getHistoryCount(ledger, account);
-    //   const timestamp = new Date().getTime();
-    //   const newCounter: Counter = {count, timestamp};
-    //   this.counters.set(key, newCounter);
-    // }
-
     return {
       count: 0,
       result: trades
@@ -373,99 +357,118 @@ export class GraphService {
     return 0;
   }
 
-  async getVolume24(qvol: boolean) {
-    const myQuery = `
-      query pairs {
-        volumeFees(orderBy: date, orderDirection: desc, first: 25, where: { ledger: -1 }) {
-          id
-          ledger
-          vol
-          fee
-          date
-        }
-      }
-    `
-    const key = `CUMULATED-VOLFEE`;
+  async getVolume24(queryVol: boolean) {
+    // const myQuery = `
+    //   query pairs {
+    //     volumeFees(orderBy: date, orderDirection: desc, first: 25, where: { ledger: -1 }) {
+    //       id
+    //       ledger
+    //       vol
+    //       fee
+    //       date
+    //     }
+    //   }
+    // `
+    // const key = `CUMULATED-VOLFEE`;
 
-    const result = await execute(myQuery, {})
-    const vfs = result.data?.volumeFees;
-    const lastHour = this.lastNHourFormat(1);
-    const last25Hour = this.lastNHourFormat(25);
-    let vols = [];
-    let totalVol;
-    if(vfs) {
-      console.log(lastHour, last25Hour, vfs.length);
-      for(const vf of vfs) {
-        if(vf.date === key) {
-          totalVol = vf;
-          continue;
-        }
-        if(vf.date > last25Hour) {
-          // const bigint = BigNumber.from(vf.vol);
-          // total = total.add(bigint.div(decials));
-          console.log(vf);
-          vols.push(vf);
-        }
-      }
-    }
-    const decials = BigNumber.from(10).pow(18);
-    if(vols.length === 0) {
-      return '0';
-    }
-    const end = totalVol;
-    const start = vols[0];
-    let total: BigNumber;
-    if(qvol) {
-      total = BigNumber.from(end.vol).sub(BigNumber.from(start.vol)).div(decials);
-    } else {
-      total = BigNumber.from(end.fee).sub(BigNumber.from(start.fee)).div(decials);
-    }
+    // const result = await execute(myQuery, {})
+    // const vfs = result.data?.volumeFees;
+    // const lastHour = this.lastNHourFormat(1);
+    // const last25Hour = this.lastNHourFormat(25);
+    // let vols = [];
+    // let totalVol;
+    // if(vfs) {
+    //   console.log(lastHour, last25Hour, vfs.length);
+    //   for(const vf of vfs) {
+    //     if(vf.date === key) {
+    //       totalVol = vf;
+    //       continue;
+    //     }
+    //     if(vf.date > last25Hour) {
+    //       // const bigint = BigNumber.from(vf.vol);
+    //       // total = total.add(bigint.div(decials));
+    //       console.log(vf);
+    //       vols.push(vf);
+    //     }
+    //   }
+    // }
+    // const decials = BigNumber.from(10).pow(18);
+    // if(vols.length === 0) {
+    //   return '0';
+    // }
+    // const end = totalVol;
+    // const start = vols[0];
+    // let total: BigNumber;
+    // if(qvol) {
+    //   total = BigNumber.from(end.vol).sub(BigNumber.from(start.vol)).div(decials);
+    // } else {
+    //   total = BigNumber.from(end.fee).sub(BigNumber.from(start.fee)).div(decials);
+    // }
 
-    return total.toString();
+    // return total.toString();
+    const yesterday = this._getYesterday();
+    const trades = await this.findLastest24HTrade(Math.round(yesterday.getTime()/1000));
+    let vol: BigNumber = BigNumber.from(0);
+    let fee: BigNumber = BigNumber.from(0);
+    for(const trade of trades) {
+        vol = vol.add(BigNumber.from(trade.totalVal));
+        fee = fee.add(BigNumber.from(trade.fee));
+    }
+    return queryVol? this.divDecimal(vol.toString()): fee.toString();
   }
 
   async _getTVL24() {
-    const myQuery = `
-      query pairs {
-        tvls(orderBy: date, orderDirection: desc, first: 25) {
-          id
-          date
-          amount
-        }
-      }
-    `
-    const key = `CUMULATED_KEY`;
+    // const myQuery = `
+    //   query pairs {
+    //     tvls(orderBy: date, orderDirection: desc, first: 25) {
+    //       id
+    //       date
+    //       amount
+    //     }
+    //   }
+    // `
+    // const key = `CUMULATED_KEY`;
 
-    const result = await execute(myQuery, {})
-    const tvls = result.data?.tvls;
-    const lastHour = this.lastNHourFormat(1);
-    const last25Hour = this.lastNHourFormat(25);
-    let usefulTvls = [];
-    let totalTvl: any;
-    if(tvls) {
-      console.log(lastHour, last25Hour, tvls.length);
-      for(const vf of tvls) {
-        if(vf.date === key) {
-          totalTvl = vf;
-          continue;
-        }
-        if(vf.date > last25Hour) {
-          // const bigint = BigNumber.from(vf.vol);
-          // total = total.add(bigint.div(decials));
-          console.log(vf);
-          usefulTvls.push(vf);
-        }
-      }
-    }
-    const decials = BigNumber.from(10).pow(18);
-    if(usefulTvls.length === 0) {
-      return '0';
-    }
-    const end = totalTvl;
-    const start = usefulTvls[0];
-    const total = BigNumber.from(end.vol).sub(BigNumber.from(start.vol)).div(decials);
+    // const result = await execute(myQuery, {})
+    // const tvls = result.data?.tvls;
+    // const lastHour = this.lastNHourFormat(1);
+    // const last25Hour = this.lastNHourFormat(25);
+    // let usefulTvls = [];
+    // let totalTvl: any;
+    // if(tvls) {
+    //   console.log(lastHour, last25Hour, tvls.length);
+    //   for(const vf of tvls) {
+    //     if(vf.date === key) {
+    //       totalTvl = vf;
+    //       continue;
+    //     }
+    //     if(vf.date > last25Hour) {
+    //       // const bigint = BigNumber.from(vf.vol);
+    //       // total = total.add(bigint.div(decials));
+    //       console.log(vf);
+    //       usefulTvls.push(vf);
+    //     }
+    //   }
+    // }
+    // const decials = BigNumber.from(10).pow(18);
+    // if(usefulTvls.length === 0) {
+    //   return '0';
+    // }
+    // const end = totalTvl;
+    // const start = usefulTvls[0];
+    // const total = BigNumber.from(end.amount).sub(BigNumber.from(start.amount)).div(decials);
 
-    return total.toString();
+    const yesterday = this._getYesterday();
+    const trades = await this.findLastest24HUSDStacked(Math.round(yesterday.getTime()/1000));
+    let tvl: BigNumber = BigNumber.from(0);
+    for(const trade of trades) {
+        if(trade.mint === 1) {
+          tvl = BigNumber.from(trade.amount).add(tvl);
+        } else {
+          tvl = tvl.sub(BigNumber.from(trade.amount));
+        }
+    }
+    return tvl.toString();
   }
 
   async getTusers() {
@@ -639,29 +642,34 @@ export class GraphService {
   }
 
   async _getTraders() {
-    const timestamp = Math.round(Date.now()/1000);
-    let usds = await this.findUSDStacked(timestamp);
-    let users = usds.map((usd: USDStacked) => usd.user);
-    const totalUser = new Set(users).size;
+    const allTrades = await this.findTrades(Math.round(new Date().getTime()/1000));
+    const allUsers = allTrades.map((trade: Trade) => trade.account);
+    const allUniUsers = new Set(allUsers).size;
 
-    usds = await this.findUSDStacked(timestamp - 3600 * 24);
-    users = usds.map((usd: USDStacked) => usd.user);
+    const yesterday = this._getYesterday();
+    const trades = await this.findTrades(Math.round(yesterday.getTime()/1000));
+    const users = trades.map((trade: Trade) => trade.account);
     const lastUsers = new Set(users).size;
     return {
-      traders: totalUser,
-      traders24: totalUser - lastUsers
+      traders: allUniUsers,
+      traders24: allUniUsers - lastUsers
     };
   }
 
-  async _getCollateral() {
-    const balance = await this.ethereumService.getBalanceOf();
-    
+  _getYesterday(): Date {
     const now = new Date();
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1); // 获取昨天的日期
     yesterday.setMinutes(0);
     yesterday.setSeconds(0);
     yesterday.setMilliseconds(0);
+    return yesterday;
+  }
+
+  async _getCollateral() {
+    const balance = await this.ethereumService.getBalanceOf();
+    
+    const yesterday = this._getYesterday();
 
     // 获取整小时的时间戳（以秒为单位）
     const timestamp = Math.floor(yesterday.getTime() / 1000);
@@ -699,7 +707,7 @@ export class GraphService {
   }
 
   /**
-   * mysql oprations
+   * mysql usdstaked oprations
    */
 
   findUSDStacked(timestamp: number): Promise<USDStacked[]> {
@@ -717,6 +725,14 @@ export class GraphService {
       .getOne();
   }
 
+  findLastest24HUSDStacked(timestamp: number): Promise<USDStacked[]> {
+    return this.usdRepository
+      .createQueryBuilder('usd')
+      .where(`usd.timestamp >= :timestamp`, 
+        { timestamp: timestamp })
+      .getMany();
+  }
+
   insertManyEmails(usds: USDStacked[]): Promise<InsertResult> {
     return this.usdRepository.insert(usds);
   }
@@ -731,6 +747,36 @@ export class GraphService {
       .where(`coll.timestamp = :timestamp`, 
         { timestamp: timestamp })
       .getOne();
+  }
+
+  /**
+   * mysql Trades oprations
+   */
+  findLastestTrade(): Promise<Trade> {
+    return this.tradeRepository
+      .createQueryBuilder('usd')
+      .orderBy('usd.timestamp', 'DESC')
+      .getOne();
+  }
+
+  findTrades(timestamp: number): Promise<Trade[]> {
+    return this.tradeRepository
+      .createQueryBuilder('usd')
+      .where(`usd.timestamp < :timestamp`, 
+        { timestamp: timestamp })
+      .getMany();
+  }
+
+  findLastest24HTrade(timestamp: number): Promise<Trade[]> {
+    return this.tradeRepository
+      .createQueryBuilder('usd')
+      .where(`usd.timestamp >= :timestamp`, 
+        { timestamp: timestamp })
+      .getMany();
+  }
+
+  insertManyTrades(usds: Trade[]): Promise<InsertResult> {
+    return this.tradeRepository.insert(usds);
   }
 
   @Cron('* 0 * * * *')
@@ -752,7 +798,59 @@ export class GraphService {
 
   // call 
   @Cron('0 * * * * *')
-  async callTheGraph() {
+  async trackTheGraph() {
+    await this.trackUSDStacked();
+    await this.trackTrade(); 
+  }
+
+  async trackTrade() {
+    const trade = await this.findLastestTrade();
+    const timestamp = trade? trade.timestamp: 0;
+
+    const myQuery = `
+      query usds {
+        trades(where: {timestamp_gt: ${timestamp}}) {
+          id
+          ledger
+          account
+          currencyKey
+          amount
+          keyPrice
+          fee
+          type
+          totalVal
+          timestamp
+          eventid
+          pnl
+          hash
+        }
+      }
+    `
+    console.log(myQuery);
+
+    const result = await execute(myQuery, {})
+    const trades = result.data?.trades;
+    const ctrades = trades.map((usd) => {
+      const trade: Trade = new Trade();
+      trade.ledger = usd.ledger;
+      trade.account = usd.account;
+      trade.currencyKey = usd.currencyKey;
+      trade.amount = usd.amount;
+      trade.keyPrice = usd.keyPrice;
+      trade.fee = usd.fee;
+      trade.typet = usd.type;
+      trade.totalVal = usd.totalVal;
+      trade.timestamp = usd.timestamp;
+      trade.eventid = usd.eventid;
+      trade.pnl = usd.pnl;
+      trade.hash = usd.hash;
+      return trade;
+    });
+    console.log();
+    await this.insertManyTrades(ctrades);
+  }
+
+  async trackUSDStacked() {
     const usd = await this.findLastestUSDStacked();
     const timestamp = usd? usd.timestamp: 0;
 
@@ -782,3 +880,5 @@ export class GraphService {
     await this.insertManyEmails(usds);
   }
 }
+
+

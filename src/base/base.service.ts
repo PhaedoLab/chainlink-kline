@@ -46,7 +46,7 @@ const createSendEmailCommand = (toAddress, fromAddress, content, subject) => {
   });
 };
 
-const createSendTemplatedEmailCommand = (toAddress, fromAddress, template) => {
+const createSendTemplatedEmailCommand = (toAddress, fromAddress, template, data) => {
   return new SendTemplatedEmailCommand({
     Destination: {
       /* required */
@@ -59,7 +59,7 @@ const createSendTemplatedEmailCommand = (toAddress, fromAddress, template) => {
       ],
     },
     Template: template, // required
-    TemplateData: "{}", // required
+    TemplateData: data, // required
     Source: fromAddress,
     ReplyToAddresses: [
       /* more items */
@@ -111,6 +111,14 @@ export class BaseService {
       .createQueryBuilder('email')
       .where(`email.account = :account`, 
         { account: account })
+      .getOne();
+  }
+
+  findBundleJEmailsByEmail(email: string): Promise<JEmails> {
+    return this.jemailsRepository
+      .createQueryBuilder('email')
+      .where(`email.email = :email`, 
+        { email: email })
       .getOne();
   }
 
@@ -166,7 +174,7 @@ export class BaseService {
     const emails = await this.findVerifiedJEmails();
     for(let i = 0; i < emails.length; i++) {
       const email = emails[i];
-      this._sendJEmail(email.email, `General Notification from Jungle Protocol.`, 'General Notification');
+      this._sendCommonEmail(email.email, `General Notification from Jungle Protocol.`, 'General Notification');
       console.log(`Send ${email.email} success!`);
     }
   }
@@ -174,24 +182,68 @@ export class BaseService {
   /**
    * Jungle open/close/liquidation sending email
    */
-  async open(email: string, poolName: string, timestamp: string, amount: string, name: string) {
-    const content = `You just opened position in ${poolName} debt pool at ${timestamp}. Transaction Details: ${amount} ${name}`;
-    this._sendJEmail(email, content, 'Open Position');
+  async open(account: string, email: string, poolName: string, timestamp: string, amount: string, name: string) {
+    const emailObj = await this.findBundleJEmails(account);
+    if(emailObj && emailObj.trading === 1) {
+      const content = `You just opened position in ${poolName} debt pool at ${timestamp}. Transaction Details: ${amount} ${name}`;
+      const title = `Open Position`;
+      this.logger.log(`${title} Send ${email} success!`);
+      this._sendTemplateEmail(email, 'open-position',
+        JSON.stringify({
+          "official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/",
+          title,
+          content
+        })
+      );
+    }
   }
 
-  async close(email: string, poolName: string, timestamp: string, amount: string, name: string) {
-    const content = `You just closed position in ${poolName} debt pool at ${timestamp}. Transaction Details: ${amount} ${name}`;
-    this._sendJEmail(email, content, 'Close Position');
+  async close(account: string, email: string, poolName: string, timestamp: string, amount: string, name: string) {
+    const emailObj = await this.findBundleJEmails(account);
+    if(emailObj && emailObj.trading === 1) {
+      const content = `You just closed position in ${poolName} debt pool at ${timestamp}. Transaction Details: ${amount} ${name}`;
+      const title = `Close Position`;
+      this.logger.log(`${title} Send ${email} success!`);
+      this._sendTemplateEmail(email, 'close-position',
+        JSON.stringify({
+          "official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/",
+          title,
+          content
+        })
+      );
+    }
   }
 
-  async liquidation(email: string, poolName: string, timestamp: string) {
-    const content = `Your position in ${poolName} debt pool was liquidated at ${timestamp}`;
-    this._sendJEmail(email, content, 'Liquidation');
+  async liquidation(account: string, poolName: string, timestamp: string) {
+    const email = await this.findBundleJEmails(account);
+    if(email && email.trading === 1) {
+      const content = `Your position in ${poolName} debt pool was liquidated at ${timestamp}`;
+      const title = `Liquidation`;
+      this.logger.log(`${title} Send ${email} success!`);
+      this._sendTemplateEmail(email.email, 'liqui',
+        JSON.stringify({
+          "official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/",
+          title,
+          content
+        })
+      );
+    }
   }
 
-  async warning(email: string, poolName: string) {
-    const content = `Your position in ${poolName} debt pool is closed to be liquidated.`;
-    this._sendJEmail(email, content, 'Liquidation Warning');
+  async warning(account: string, poolName: string) {
+    const email = await this.findBundleJEmails(account);
+    if(email && email.trading === 1) {
+      const content = `Your position in ${poolName} debt pool is closed to be liquidated.`;
+      const title = `Liquidation Warning`;
+      this.logger.log(`${title} Send ${email} success!`);
+      this._sendTemplateEmail(email.email, 'liqui-warning',
+        JSON.stringify({
+          "official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/",
+          title,
+          content
+        })
+      );
+    }
   }
 
 
@@ -210,7 +262,7 @@ export class BaseService {
     jMails.trading = trading;
     jMails.code = crypto.createHash('sha256').update(email+Date.now()).digest('hex').substring(0, 50);;
     this.insertManyJEmails([jMails]);
-    return this.sendJEmail(email, account, jMails.code);
+    return this.sendVerifyEmail(email, account, jMails.code);
   }
 
   async updateEmail(email: string, account: string, general: number, trading: number) {
@@ -234,7 +286,7 @@ export class BaseService {
         jMails.code = crypto.createHash('sha256').update(email+Date.now()).digest('hex');
         jMails.verify = 0;
         this.updateManyJEmails(jMails);
-        return this.sendJEmail(email, account, jMails.code);
+        return this.sendVerifyEmail(email, account, jMails.code);
       }
     } else {
       jMails = new JEmails();
@@ -244,7 +296,7 @@ export class BaseService {
       jMails.trading = trading;
       jMails.code = crypto.createHash('sha256').update(email+Date.now()).digest('hex');
       this.insertManyJEmails([jMails]);
-      return this.sendJEmail(email, account, jMails.code);
+      return this.sendVerifyEmail(email, account, jMails.code);
     }
   }
 
@@ -290,12 +342,17 @@ export class BaseService {
     }
   }
 
-  async sendJEmail(recepient: string, account: string, code: string) {
-    const content = `Click this url to verify: https://main.d7u2msnczqldy.amplifyapp.com?account=${account}&code=${code}`
-    return this._sendJEmail(recepient, content, "Verify your email address");
+  async sendVerifyEmail(recepient: string, account: string, code: string) {
+    // const content = `Click this url to verify: https://main.d7u2msnczqldy.amplifyapp.com?account=${account}&code=${code}`
+    const url = `https://main.d7u2msnczqldy.amplifyapp.com?account=${account}&code=${code}`;
+    return this._sendTemplateEmail(recepient, 'verify',
+      JSON.stringify(
+        {"official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/", "app_url": url}
+      )
+    );
   }
 
-  async _sendJEmail(recepient: string, content: string, subject: string) {
+  async _sendCommonEmail(recepient: string, content: string, subject: string) {
     const sendEmailCommand = createSendEmailCommand(
       recepient,
       "official@jungle.exchange",
@@ -321,14 +378,16 @@ export class BaseService {
   }
 
   async sendEmail(recepient: string) {
-    this._sendEmail(recepient, 'osubscription');
+    this._sendTemplateEmail(recepient, 'welcome',
+      JSON.stringify({"official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/", "app_url": "https://main.d7u2msnczqldy.amplifyapp.com/"})
+    );
   }
   
-  async _sendEmail(recepient: string, template: string) {
+  async _sendTemplateEmail(recepient: string, template: string, data: string = "{}") {
     const sendEmailCommand = createSendTemplatedEmailCommand(
       recepient,
       "official@jungle.exchange",
-      template
+      template, data
     );
   
     try {
