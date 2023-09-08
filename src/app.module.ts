@@ -20,7 +20,7 @@ import { LiquidationController } from './liquidation/liquidation.controller';
 import { LiquidationService } from './liquidation/liquidation.service';
 import { LiquidationModule } from './liquidation/liquidation.module';
 import { EthereumService } from './liquidation/ethereum.service';
-import { Collateral, USDStacked, Trade } from './graph/graph.entiry';
+import { Collateral, RiskFund, USDStacked, Trade, Liquidation, Histogram, Trader } from './graph/graph.entiry';
 
 @Module({
   imports: [
@@ -33,7 +33,7 @@ import { Collateral, USDStacked, Trade } from './graph/graph.entiry';
       username: 'root',
       password: '',
       database: 'test',
-      entities: [Prices, Period, Emails, JEmails, Collateral, USDStacked, Trade],
+      entities: [Prices, Period, Emails, JEmails, Collateral, USDStacked, Trade, Liquidation, RiskFund, Histogram, Trader],
       synchronize: true,
     }),
     BaseModule,

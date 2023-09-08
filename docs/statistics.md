@@ -21,7 +21,7 @@ POST方式，须带上http请求头
 | ---------- |  ----------- | -------------------------------------------------- |
 | start   |Number | 开始时间戳 |
 | end   |Number | 结束时间戳 |
-| dtype   |String | 数据类型，有六种类型，tvl, vol, traders, trades, tradingfee, insufund |
+| dtype   |String | 数据类型，有六种类型，tvl, vol, traders, trades, tradingfee, insufund，如果不填的话，会给出所有六种类型的数据 |
 
 
 ### 返回值
@@ -37,31 +37,62 @@ POST方式，须带上http请求头
 
 | 参数名     | 必选 | 类型          | 说明                                               |
 | ---------- | ---- | ----------- | -------------------------------------------------- |
-| timestamp   | Number | 零点时间戳，代表某一天 |
-| incre  | String | 增量 |
-| cumul  | String | 累积量 |
+| timestamp   | Number | 零点时间戳，代表某一天，一般是当天零点的时间戳 |
+| tvl  | String | tvl增量 |
+| ttvl  | String | tvl累积量 |
+| vol  | String | vol增量 |
+| tvol  | String | vol累积量 |
+| tradingfee  | String | tradingfee增量 |
+| ttradingfee  | String | tradingfee累积量 |
+| traders  | String | traders增量 |
+| ttraders  | String | traders累积量 |
+| trades  | String | trades增量 |
+| ttrades  | String | trades累积量 |
+| insufund  | String | insufund增量 |
+| tinsufund  | String | insufund累积量 |
+
 
 **返回样例**
 
 ```
 {
-    "data": {
-      "data": [
-        {
-          "timestamp":"1693878062573",
-          "incre":"1000000000000000000000000",
-          "cumul":"1000000000000000000000000"
-        },
-        {
-          "timestamp":"1693878062573",
-          "incre":"1000000000000000000000000",
-          "cumul":"1000000000000000000000000"
-        }
-      ],
-      "decimals": 18
-    }
-    "code":200,
-    "message":"ok"
+    "data":{
+        "data":[
+            {
+                "tvl":"0",
+                "vol":"2344361045677352504384",
+                "tradingfee":"1533199531516743164",
+                "traders":"0",
+                "trades":"41",
+                "insufund":"0",
+                "ttvl":"204060000000000000000000",
+                "tvol":"51322750227731205070341",
+                "ttradingfee":"36097415622722930230",
+                "ttraders":"17",
+                "ttrades":"245",
+                "tinsufund":"0",
+                "timestamp":"1693497600"
+            },
+            {
+                "tvl":"0",
+                "vol":"1706467316765465216129",
+                "tradingfee":"1039795835877732596",
+                "traders":"1",
+                "trades":"16",
+                "insufund":"0",
+                "ttvl":"204060000000000000000000",
+                "tvol":"53029217544496670286470",
+                "ttradingfee":"37137211458600662826",
+                "ttraders":"18",
+                "ttrades":"261",
+                "tinsufund":"0",
+                "timestamp":"1693584000"
+            }
+        ],
+        "decimals":18
+    },
+    "code":0,
+    "message":"ok"
 }
 ```
 

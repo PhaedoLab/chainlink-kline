@@ -720,10 +720,12 @@ export class ChainlinkService {
 
   async get24hPrices(tokenName: string) {
     const st = new Date().getTime();
-    const prices = (await this.getCandles(tokenName, '1h', 25, 'false'))?.prices;
+    const pricesPro = this.getCandles(tokenName, '1h', 25, 'false');
+    const pricePro = this.getLastestPrice(tokenName);
+    const [pricesObj, price] = await Promise.all([pricesPro, pricePro]);
+    const prices = pricesObj.prices;
     this.logger.log(`Get get24hPrices: ${(new Date().getTime() - st) / 1000} s costed.`);
     if(prices) {
-      const price = await this.getLastestPrice(tokenName);
       this.logger.log(`Get get24hPrices prices: ${(new Date().getTime() - st) / 1000} s costed.`);
       const hour24Before = prices[prices.length - 1];
       const peridos = prices.map((item, index, array) => {
@@ -791,15 +793,16 @@ export class ChainlinkService {
   //            Website        //
   // ========================= //
   
-  async getTokenInfo(tokenName: string) {
+  async getTokenInfo(tokenName: string, num: number=40) {
 
     const st = new Date().getTime();
-    const candles = await this.getCandles(tokenName, '1h', 40, 'false');
+    const candlesPro = this.getCandles(tokenName, '1h', num, 'false');
+    const priceChgPro = this.get24hPrices(tokenName);
+    const [candles, priceChg] = await Promise.all([candlesPro, priceChgPro]);
+
     const prices = candles.prices;
     this.logger.log(`prices length: ${prices.length}`);
-
-    const priceChg = await this.get24hPrices(tokenName);
-    this.logger.log('priceChg', priceChg);
+    this.logger.log(`Get getTokenInfo: ${(new Date().getTime() - st) / 1000} s costed.`);
     return {
       'prices': prices,
       'price': priceChg['price'],

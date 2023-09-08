@@ -1,10 +1,27 @@
-import { Controller, Get, Logger, Query, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Post, Query, UseInterceptors } from '@nestjs/common';
 import { GraphService } from './graph.service';
+
+export class HistogramDto {
+  start: string;
+  end: string;
+  dtype: string;
+}
+
+export class TableDto {
+  start: string;
+  end: string;
+  dtype: string; // 
+  page: string; 
+  pagesize: string;
+  account: string; //
+  network: string;
+  debtpool: string; //
+}
 
 @Controller('api/v1/graph')
 export class GraphController {
   private readonly logger = new Logger(GraphController.name);
-  
+
   constructor(private readonly graphService: GraphService) {}
 
   /**
@@ -126,5 +143,29 @@ export class GraphController {
   async metrics(): Promise<any> {
     const mets = await this.graphService.getMetrics();
     return mets;
+  }
+
+  @Post('histogram')
+  async histograms(@Body() body: HistogramDto) {
+    const start = body.start? parseInt(body.start): 0;
+    const end = body.end? parseInt(body.end): 0;
+    if(start === 0 || end === 0) {
+      throw new Error('start and end can not be null at the same time.');
+    }
+    const hist = await this.graphService.getHistograms(start, end, body.dtype);
+    return hist;
+  }
+
+  @Post('tables')
+  async tables(@Body() body: TableDto) {
+    const start = body.start;
+    const end = body.end;
+    const dtype = body.dtype;
+    await this.graphService.getTables(body);
+  }
+
+  @Post('downloadtables')
+  async downloadtables() {
+    
   }
 }

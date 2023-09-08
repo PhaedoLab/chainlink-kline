@@ -1,35 +1,109 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { execute } from '../../.graphclient'
 import { BigNumber } from "ethers";
 import { Cron, Interval } from '@nestjs/schedule';
-import { Collateral, USDStacked, Trade } from './graph.entiry';
+import { Collateral, USDStacked, Trade, Liquidation, RiskFund, Histogram, Trader } from './graph.entiry';
 import { InjectRepository } from '@nestjs/typeorm';
-import { InsertResult, Repository } from 'typeorm';
+import { InsertResult, Repository, DataSource } from 'typeorm';
 import { EthereumService } from 'src/liquidation/ethereum.service';
 import { BaseService } from 'src/base/base.service';
+import { TableDto } from './graph.controller';
+import { table } from 'console';
 
 interface Counter {
   count: number,
   timestamp: number
 }
 
+enum Hist {
+  TVL = 'tvl',
+  VOL = 'vol',
+  TRADER = 'trader',
+  TRADE = 'trade',
+  FEE = 'fee',
+  RFUND = 'rfund'
+}
+
 @Injectable()
 export class GraphService {
-
+  private readonly logger = new Logger(GraphService.name);
   private counters: Map<string, Counter>;
   private readonly LIQUIDATION = 'liquidation';
   private readonly TRADE = 'trade';
+  private readonly totalData: Map<Hist, string>;
+  private readonly uniTraders: Set<string>;
+  private ledgers: Map<string, string>;
 
   constructor(
-    @InjectRepository(USDStacked)
-    private usdRepository: Repository<USDStacked>,
     @InjectRepository(Collateral)
     private collateralRepository: Repository<Collateral>,
+    @InjectRepository(RiskFund)
+    private riskfundRepository: Repository<RiskFund>,
+    @InjectRepository(USDStacked)
+    private usdRepository: Repository<USDStacked>,
     @InjectRepository(Trade)
     private tradeRepository: Repository<Trade>,
+    @InjectRepository(Liquidation)
+    private liquiRepository: Repository<Liquidation>,
+    @InjectRepository(Histogram)
+    private histRepository: Repository<Histogram>,
+    @InjectRepository(Trader)
+    private traderRepository: Repository<Trader>,
     private readonly ethereumService: EthereumService
   ) {
     this.counters = new Map<string, Counter>();
+    this.totalData = new Map<Hist, string>();
+    this.uniTraders = new Set<string>();
+
+    this.initTotalData();
+
+    this.ledgers = new Map<string, string>();
+    this.ethereumService.allLedgers().then((ledgers) => {
+      const ids = ledgers[0];
+      const names = ledgers[1];
+      for(let i = 0; i < ids.length; i++) {
+        console.log(ids[i].toString());
+        this.ledgers.set(names[i], ids[i].toString());
+      }
+      console.log(this.ledgers);
+      console.log(this.ledgers.get('0'));
+    });
+  }
+
+  async initTotalData() {
+    const hist = await this.findLastestHistogram();
+    const traders = await this.findAllTraders();
+    traders.forEach((trader: Trader) => {
+      this.uniTraders.add(trader.trader);
+    });
+    this.logger.log(`Trader num ${this.uniTraders.size}`);
+    if(hist) {
+      this.totalData.set(Hist.TVL, hist.ttvl);
+      this.totalData.set(Hist.VOL, hist.tvol);
+      this.totalData.set(Hist.TRADE, hist.ttrades);
+      this.totalData.set(Hist.TRADER, hist.ttraders);
+      this.totalData.set(Hist.FEE, hist.tfee);
+    } else {
+      const oneHour = 60 * 60; // 1小时的毫秒数
+      const now = Math.round(Date.now() / 1000);
+      const startTimestamp = 1691061265;
+      
+      let currentTimestamp = Math.round(startTimestamp / oneHour) * oneHour; // 精确到小时
+      while (currentTimestamp < now) {
+        const nextTimestamp = currentTimestamp + oneHour;
+        await this.calcuHistograms(currentTimestamp, nextTimestamp);
+        // this.totalData.set(Hist.TVL, datas.ttvl?.toString());
+        // this.totalData.set(Hist.VOL, datas.tvol?.toString());
+        // this.totalData.set(Hist.TRADE, datas.trade?.toString());
+        // this.totalData.set(Hist.TRADER, datas.trader?.toString());
+        // this.totalData.set(Hist.FEE, datas.fee?.toString());
+        currentTimestamp = nextTimestamp;
+      }
+    }
+    this.logger.log(`Hist init`);
+    for (const [key, value] of this.totalData) {
+      console.log(`Key: ${key}, Value: ${value}`);
+    }
   }
 
   _formatNumber(n: number): string {
@@ -666,8 +740,19 @@ export class GraphService {
     return yesterday;
   }
 
+  _getLastNHour(num: number): Date {
+    const now = new Date();
+    const lastHour = new Date(now);
+    lastHour.setDate(now.getDate());
+    lastHour.setHours(now.getHours() - num); // 获取早一个小时的hour
+    lastHour.setMinutes(0);
+    lastHour.setSeconds(0);
+    lastHour.setMilliseconds(0);
+    return lastHour;
+  }
+
   async _getCollateral() {
-    const balance = await this.ethereumService.getBalanceOf();
+    const balance = await this.ethereumService.getJungleBalanceOf();
     
     const yesterday = this._getYesterday();
 
@@ -718,6 +803,14 @@ export class GraphService {
       .getMany();
   }
 
+  findDurationUSDStacked(start: number, end: number): Promise<USDStacked[]> {
+    return this.usdRepository
+      .createQueryBuilder('usd')
+      .where(`usd.timestamp >= :start and usd.timestamp < :end`,
+        { start, end })
+      .getMany();
+  }
+
   findLastestUSDStacked(): Promise<USDStacked> {
     return this.usdRepository
       .createQueryBuilder('usd')
@@ -732,6 +825,70 @@ export class GraphService {
         { timestamp: timestamp })
       .getMany();
   }
+
+  /**
+   * mysql Liquidation oprations
+   */
+
+  findLiquidation(timestamp: number): Promise<Liquidation[]> {
+    return this.liquiRepository
+      .createQueryBuilder('usd')
+      .where(`usd.timestamp < :timestamp`, 
+        { timestamp: timestamp })
+      .getMany();
+  }
+
+  findDurationLiquidation(start: number, end: number, query: string=''): Promise<Liquidation[]> {
+    return this.liquiRepository
+      .createQueryBuilder('usd')
+      .where(`usd.timestamp >= :start and usd.timestamp < :end ${query}`,
+        { start, end })
+      .getMany();
+  }
+
+  findLastestLiquidation(): Promise<Liquidation> {
+    return this.liquiRepository
+      .createQueryBuilder('usd')
+      .orderBy('usd.timestamp', 'DESC')
+      .getOne();
+  }
+
+  findLastest24HLiquidation(timestamp: number): Promise<Liquidation[]> {
+    return this.liquiRepository
+      .createQueryBuilder('usd')
+      .where(`usd.timestamp >= :timestamp`, 
+        { timestamp: timestamp })
+      .getMany();
+  }
+
+  insertManyLiquis(liquis: Liquidation[]): Promise<InsertResult> {
+    return this.liquiRepository.insert(liquis);
+  }
+
+  /**
+   * mysql Histogram oprations
+   */
+
+  findDurationHistogram(start: number, end: number): Promise<Histogram[]> {
+    return this.histRepository
+      .createQueryBuilder('usd')
+      .where(`usd.timestamp >= :start and usd.timestamp <= :end`, 
+        { start, end })
+      .getMany();
+  }
+
+  findLastestHistogram(): Promise<Histogram> {
+    return this.histRepository
+      .createQueryBuilder('usd')
+      .orderBy('usd.timestamp', 'DESC')
+      .getOne();
+  }
+
+  insertManyHistogram(hists: Histogram[]): Promise<InsertResult> {
+    return this.histRepository.insert(hists);
+  }
+
+  // histogram end
 
   insertManyEmails(usds: USDStacked[]): Promise<InsertResult> {
     return this.usdRepository.insert(usds);
@@ -749,14 +906,43 @@ export class GraphService {
       .getOne();
   }
 
+  insertManyRiskFund(funds: RiskFund[]): Promise<InsertResult> {
+    return this.riskfundRepository.insert(funds);
+  }
+
+  findDurationRiskFund(start: number, end: number): Promise<RiskFund[]> {
+    return this.riskfundRepository
+      .createQueryBuilder('coll')
+      .where(`coll.timestamp >= :start and coll.timestamp <= :end`, 
+        { start, end })
+      .orderBy('coll.timestamp', 'DESC')
+      .getMany();
+  }
+
+  findRiskFund(timestamp: number): Promise<RiskFund> {
+    return this.riskfundRepository
+      .createQueryBuilder('coll')
+      .where(`coll.timestamp = :timestamp`, 
+        { timestamp: timestamp })
+      .getOne();
+  }
+
   /**
-   * mysql Trades oprations
+   * mysql Trade oprations
    */
   findLastestTrade(): Promise<Trade> {
     return this.tradeRepository
       .createQueryBuilder('usd')
       .orderBy('usd.timestamp', 'DESC')
       .getOne();
+  }
+
+  findDurationTrades(start: number, end: number, appendQuery: string=''): Promise<Trade[]> {
+    return this.tradeRepository
+      .createQueryBuilder('usd')
+      .where(`usd.timestamp >= :start and usd.timestamp < :end ${appendQuery}`, 
+        { start, end })
+      .getMany();
   }
 
   findTrades(timestamp: number): Promise<Trade[]> {
@@ -779,9 +965,28 @@ export class GraphService {
     return this.tradeRepository.insert(usds);
   }
 
-  @Cron('* 0 * * * *')
-  async callJungleCollateral() {
-    const balance = await this.ethereumService.getBalanceOf();
+  @Cron('0 0 * * * *')
+  async trackFromContracts() {
+    await this.trackCollateral();
+    await this.trackInsuFund();
+
+    const hist = await this.findLastestHistogram();
+    if(!hist) {
+      const oneHour = 60 * 60; // 1小时的秒数
+      let start = parseInt(hist.timestamp) + oneHour;
+      let end = start + oneHour;
+      const now = Math.round(Date.now() / 1000);
+      
+      while (end <= now) {
+        await this.calcuHistograms(start, end);
+        start = end;
+        end = start + oneHour;
+      }
+    }
+  }
+
+  async trackCollateral() {
+    const balance = await this.ethereumService.getJungleBalanceOf();
     const collateral: Collateral = new Collateral();
     collateral.amount = balance;
     const now = new Date();
@@ -796,11 +1001,28 @@ export class GraphService {
     this.insertManyCollateral([collateral]);
   }
 
+  async trackInsuFund() {
+    const balance = await this.ethereumService.getRiskFundBalanceOf();
+    const riskfund: RiskFund = new RiskFund();
+    riskfund.amount = balance;
+    const now = new Date();
+    now.setMinutes(0);
+    now.setSeconds(0);
+    now.setMilliseconds(0);
+
+    // 获取整小时的时间戳（以秒为单位）
+    const timestamp = Math.floor(now.getTime() / 1000);
+
+    riskfund.timestamp = `${timestamp}`;
+    this.insertManyRiskFund([riskfund]);
+  }
+
   // call 
   @Cron('0 * * * * *')
   async trackTheGraph() {
     await this.trackUSDStacked();
-    await this.trackTrade(); 
+    await this.trackTrade();
+    await this.trackLiquidation();
   }
 
   async trackTrade() {
@@ -878,6 +1100,287 @@ export class GraphService {
       return usdClass;
     });
     await this.insertManyEmails(usds);
+  }
+
+  async trackLiquidation() {
+    const liqui = await this.findLastestLiquidation();
+    const timestamp = liqui? liqui.timestamp: 0;
+
+    const myQuery = `
+      query usds {
+        liquidations(where: {timestamp_gt: ${timestamp}}) {
+          id
+          ledger
+          account
+          operator
+          collateral
+          debt
+          totalDebt
+          normal
+          eventid
+          timestamp
+          hash
+        }
+      }
+    `
+    console.log(myQuery);
+
+    const result = await execute(myQuery, {})
+    const liquis = result.data?.liquidations;
+    const liquidations = liquis.map((liqui) => {
+      const liquidation: Liquidation = new Liquidation();
+      liquidation.ledger = liqui.ledger;
+      liquidation.account = liqui.account;
+      liquidation.operator = liqui.operator;
+      liquidation.collateral = liqui.collateral;
+      liquidation.debt = liqui.debt;
+      liquidation.totalDebt = liqui.totalDebt;
+      liquidation.normal = liqui.normal;
+      liquidation.eventid = liqui.eventid;
+      liquidation.timestamp = liqui.timestamp;
+      liquidation.hash = liqui.hash;
+      
+      return liquidation;
+    });
+    await this.insertManyLiquis(liquidations);
+  }
+
+  /**
+   * statistics data
+   */
+  async getHistograms(start: number, end: number, dtype: string) {
+    const endAppend = end + 60 * 60 * 24;
+    const hists = await this.findDurationHistogram(start, endAppend);
+    const arrs = [];
+    for (let i = 0; i < hists.length; i += 24) {
+      const chunk = hists.slice(i, i + 24);
+      let tvl = BigInt(0);
+      let vol = BigInt(0);
+      let fee = BigInt(0);
+      let trader = BigInt(0);
+      let trade = BigInt(0);
+      let rfund = BigInt(0);
+      for(const ck of chunk) {
+        tvl += BigInt(ck.tvl);
+        vol += BigInt(ck.vol);
+        fee += BigInt(ck.fee);
+        trader += BigInt(ck.traders);
+        trade += BigInt(ck.trades);
+        rfund += BigInt(ck.rfund);
+      }
+      const cumulHist = chunk[chunk.length - 1];
+      arrs.push({
+        'tvl': tvl.toString(),
+        'vol': this.divDecimal(vol.toString()),
+        'tradingfee': fee.toString(),
+        'traders': trader.toString(),
+        'trades': trade.toString(),
+        'insufund': rfund.toString(),
+        'ttvl': cumulHist.ttvl,
+        'tvol': this.divDecimal(cumulHist.tvol),
+        'ttradingfee': cumulHist.tfee,
+        'ttraders': cumulHist.ttraders,
+        'ttrades': cumulHist.ttrades,
+        'tinsufund': cumulHist.trfund,
+        'timestamp': chunk[0].timestamp
+      });
+    }
+    const arrsNew = arrs.map((obj) => {
+      if(dtype === 'tvl') {
+        return {
+          tvl: obj.tvl,
+          ttvl: obj.ttvl,
+          timestamp: obj.timestamp
+        }
+      } else if(dtype === 'vol') {
+        return {
+          vol: obj.vol,
+          tvol: obj.tvol,
+          timestamp: obj.timestamp
+        }
+      } else if(dtype === 'tradingfee') {
+        return {
+          tradingfee: obj.tradingfee,
+          ttradingfee: obj.ttradingfee,
+          timestamp: obj.timestamp
+        }
+      } else if(dtype === 'traders') {
+        return {
+          traders: obj.traders,
+          ttraders: obj.ttraders,
+          timestamp: obj.timestamp
+        }
+      } else if(dtype === 'trades') {
+        return {
+          trades: obj.trades,
+          ttrades: obj.ttrades,
+          timestamp: obj.timestamp
+        }
+      } else if(dtype === 'insufund') {
+        return {
+          insufund: obj.insufund,
+          tinsufund: obj.tinsufund,
+          timestamp: obj.timestamp
+        }
+      } else {
+        return obj;
+      }
+    })
+    return {
+      data: arrsNew,
+      decimals: 18
+    };
+  }
+  
+  async calcuHistograms(start: number, end: number) {
+    this.logger.log(`start: ${start}, end: ${end}`);
+    const trades = await this.findDurationTrades(start, end);
+    const stacks = await this.findDurationUSDStacked(start, end);
+    const liquis = await this.findDurationLiquidation(start, end);
+    const rfunds = await this.findDurationRiskFund(start, end);
+    let tvl = BigInt(0);
+    for(const st of stacks) {
+      if(st.mint === 1) {
+        tvl += BigInt(st.amount);
+      } else {
+        tvl -= BigInt(st.amount);
+      }
+    }
+
+    let vol = BigInt(0);
+    let fee = BigInt(0);
+    const tradeSet = new Set();
+    let traderNum = 0;
+    for(const trade of trades) {
+      vol += BigInt(trade.totalVal);
+      fee += BigInt(trade.fee);
+      const td = new Trader();
+      td.trader = trade.account;
+      td.timestamp = trade.timestamp;
+
+      if(!this.uniTraders.has(trade.account)) {
+        this.uniTraders.add(trade.account);
+        await this.insertManyTraders([td]);
+        traderNum += 1;
+      }
+
+      tradeSet.add(trade.hash);
+    }
+    for(const liqui of liquis) {
+      tradeSet.add(liqui.hash);
+    }
+    const tradeNum = tradeSet.size;
+
+    const ttvl = tvl + BigInt(this.totalData.get(Hist.TVL)? this.totalData.get(Hist.TVL): '0');
+    this.totalData.set(Hist.TVL, ttvl.toString());
+    const tvol = vol + BigInt(this.totalData.get(Hist.VOL)? this.totalData.get(Hist.VOL): '0');
+    this.totalData.set(Hist.VOL, tvol.toString());
+    const tfee = fee + BigInt(this.totalData.get(Hist.FEE)? this.totalData.get(Hist.FEE): '0');
+    this.totalData.set(Hist.FEE, tfee.toString());
+    const ttraders = traderNum + parseInt(this.totalData.get(Hist.TRADER)? this.totalData.get(Hist.TRADER): '0');
+    this.totalData.set(Hist.TRADER, ttraders.toString());
+    const ttrades = tradeNum + parseInt(this.totalData.get(Hist.TRADE)? this.totalData.get(Hist.TRADE): '0');
+    this.totalData.set(Hist.TRADE, ttrades.toString());
+
+    let trfund = '0';
+    let rfund = '0';
+    if(rfunds.length === 2) {
+      const currRfund = rfunds[0];
+      const lastRfund = rfunds[1];
+      const rfundAmount = BigInt(currRfund.amount);
+      const lastRfundAmount = BigInt(lastRfund.amount);
+      rfund = (rfundAmount - lastRfundAmount).toString();
+      trfund = rfundAmount.toString();
+    } else if(rfunds.length === 1) {
+      trfund = rfunds[0].amount;
+    }
+
+    const hist = new Histogram();
+    hist.tvl = tvl.toString();
+    hist.ttvl = ttvl.toString();
+    hist.vol = vol.toString();
+    hist.tvol = tvol.toString();
+    hist.traders = traderNum.toString();
+    hist.ttraders = ttraders.toString();
+    hist.trades = tradeNum.toString();
+    hist.ttrades = ttrades.toString();
+    hist.fee = fee.toString();
+    hist.tfee = tfee.toString();
+    hist.rfund = rfund.toString();
+    hist.trfund = trfund.toString();
+    hist.timestamp = `${start}`;
+    await this.insertManyHistogram([hist]);
+
+    return {
+      tvl, ttvl, vol, tvol, 
+      trader: traderNum, ttraders, 
+      trade: tradeNum, ttrades, fee, tfee, rfund, trfund
+    };
+  }
+
+  async getTables(tableDto: TableDto) {
+    const start = tableDto.start;
+    const end = tableDto.end;
+    const dtype = tableDto.dtype;
+    const page = parseInt(tableDto.page);
+    const pageSize = parseInt(tableDto.pagesize);
+    const limit = `limit ${page * pageSize}, ${pageSize}`
+    const ledger = this.ledgers.get(tableDto.debtpool)? this.ledgers.get(tableDto.debtpool): null;
+    const ledgerQuery = ledger? `ledger = ${ledger}`: 'ledger is not null';
+    const account = tableDto.account;
+    const accountQuery = account? `account = ${account}`: 'account is not null';
+    let trades: Trade[];
+    if(dtype === 'opos') {
+      const appendQuery = `and ${ledgerQuery} and ${accountQuery} and typet in (1,2) ${limit}`;
+      trades = await this.findDurationTrades(parseInt(start), parseInt(end), appendQuery);
+    } else if(dtype === 'cpos') {
+      const appendQuery = `and ${ledgerQuery} and ${accountQuery} and typet = 3 ${limit}`;
+      trades = await this.findDurationTrades(parseInt(start), parseInt(end), appendQuery);
+    } else if(dtype === 'pos') {
+      const appendQuery = `and ${ledgerQuery} and ${accountQuery} ${limit}`;
+      trades = await this.findDurationTrades(parseInt(start), parseInt(end), appendQuery);
+    } else if(dtype === 'liqui') {
+      const appendQuery = `and ${ledgerQuery} and ${accountQuery} ${limit}`;
+      const liquis = await this.findDurationLiquidation(parseInt(start), parseInt(end), appendQuery);
+
+    } else {
+      throw new Error(`Error dtype: ${dtype}`);
+    }
+    if(trades) {
+
+    }
+  }
+
+  async _getTrades() {
+
+  }
+
+  async _getLiquidation() {
+
+  }
+
+  async downloadTables() {
+
+  }
+
+  /**
+   * mysql Trader oprations
+   */
+  findTraderNum(): Promise<number> {
+    return this.traderRepository
+      .createQueryBuilder('usd')
+      .orderBy('usd.timestamp', 'DESC')
+      .getCount();
+  }
+
+  findAllTraders(): Promise<Trader[]> {
+    return this.traderRepository
+      .createQueryBuilder('usd')
+      .getMany();
+  }
+
+  async insertManyTraders(traders: Trader[]) {
+    this.traderRepository.insert(traders);
   }
 }
 

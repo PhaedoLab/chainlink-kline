@@ -9,6 +9,7 @@ export class EthereumService {
   private erc20: ethers.Contract;
   private jungleWrapper: ethers.Contract;
   private contractAddr: string;
+  private riskResFund: string;
 
   private ABI = [
     "function liquidationRatio(uint ledger, address user) external view returns(int256)",
@@ -38,6 +39,8 @@ export class EthereumService {
 
     const wrapperContract = '0xeB51d8B19CccD9eD15a1f6B8312cb2ceF0059e58';
     this.jungleWrapper = new ethers.Contract(wrapperContract, this.jungelWrapperABI, this.wallet);
+
+    this.riskResFund = '0x344CB4a9C9D73f1d537fD4947Ac72229B311635B';
   }
 
   async allLedgers() {
@@ -50,10 +53,20 @@ export class EthereumService {
     return ledgers;
   }
 
-  async getBalanceOf() {
+  async getJungleBalanceOf() {
     let balanceOf: any;
     try {
       balanceOf = await this.erc20.balanceOf(this.contractAddr);
+    } catch(error) {
+      console.log(error);
+    }
+    return balanceOf.toString();
+  }
+
+  async getRiskFundBalanceOf() {
+    let balanceOf: any;
+    try {
+      balanceOf = await this.erc20.balanceOf(this.riskResFund);
     } catch(error) {
       console.log(error);
     }

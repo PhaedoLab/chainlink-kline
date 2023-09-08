@@ -60,13 +60,19 @@ export class ChainlinkController {
    }
 
    @Get('tokendetail')
-   async tokendetail(@Query('token') token: string
+   async tokendetail(@Query('token') token: string,
+    @Query('num') num: number
    ) {
     const st = new Date().getTime();
      if(!token) {
        return 'error';
      }
-     const detail = await this.chainlinkService.getTokenInfo(token);
+     if(!num) {
+      num = 40;
+     }
+     num = parseInt(num.toString());
+     this.logger.log(typeof num);
+     const detail = await this.chainlinkService.getTokenInfo(token, num);
     this.logger.log(`Get prices24: ${(new Date().getTime() - st) / 1000} s costed.`);
     return detail;
    }
