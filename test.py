@@ -48,15 +48,15 @@ client = boto3.client('ses',region_name=AWS_REGION)
 
 # Try to send the email.
 try:
-    # content = open('emailt/official.html').read()
-    # response = client.create_template(
-    #     Template={
-    #         'TemplateName': 'welcome',
-    #         'SubjectPart': 'Welcome to Jungle Protocol',
-    #         'TextPart': 'Welcome to Jungle Protocol',
-    #         'HtmlPart': content
-    #     }
-    # )
+    content = open('emailt/official.html').read()
+    response = client.create_template(
+        Template={
+            'TemplateName': 'welcome',
+            'SubjectPart': 'Subscription Successful!',
+            'TextPart': 'Subscription Successful!',
+            'HtmlPart': content
+        }
+    )
     # print(response)
 
     # content = open('emailt/verify.html').read()
@@ -68,7 +68,7 @@ try:
     #         'HtmlPart': content
     #     }
     # )
-    # print(response)
+    # # print(response)
 
     # content = open('emailt/trade-template.html').read()
     # response = client.create_template(
@@ -79,7 +79,7 @@ try:
     #         'HtmlPart': content
     #     }
     # )
-    # print(response)
+    # # print(response)
 
     # content = open('emailt/trade-template.html').read()
     # response = client.create_template(
@@ -90,7 +90,7 @@ try:
     #         'HtmlPart': content
     #     }
     # )
-    # print(response)
+    # # print(response)
 
     # content = open('emailt/trade-template.html').read()
     # response = client.create_template(
@@ -101,7 +101,7 @@ try:
     #         'HtmlPart': content
     #     }
     # )
-    # print(response)
+    # # print(response)
 
     # content = open('emailt/trade-template.html').read()
     # response = client.create_template(
@@ -139,24 +139,24 @@ try:
     #     Template='verify',
     #     TemplateData='{"official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/", "app_url": "https://main.d7u2msnczqldy.amplifyapp.com/"}'
     # )
-    response = client.send_templated_email(
-        Source=SENDER,
-        Destination={
-            'ToAddresses': [
-                RECIPIENT,
-                # 'qinghua.yang@ingroup.chat',
-                # 'nicolas.kong@ingroup.chat'
-            ]
-        },
-        Template='liqui',
-        TemplateData='{"official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/", "title": "title", "content": "content"}'
-    )
-    print(response)
+    # response = client.send_templated_email(
+    #     Source=SENDER,
+    #     Destination={
+    #         'ToAddresses': [
+    #             RECIPIENT,
+    #             # 'qinghua.yang@ingroup.chat',
+    #             # 'nicolas.kong@ingroup.chat'
+    #         ]
+    #     },
+    #     Template='liqui',
+    #     TemplateData='{"official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/", "title": "title", "content": "content"}'
+    # )
+    # print(response)
 
-    # templates = client.list_templates()
-    # for template in templates['TemplatesMetadata']:
-    #     name = template['Name']
-    #     print(name)
+    templates = client.list_templates()
+    for template in templates['TemplatesMetadata']:
+        name = template['Name']
+        print(name)
     #     client.delete_template(TemplateName=name)
     
 # Display an error if something goes wrong.	

@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Logger, Post, Query, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Post, Query, Res } from '@nestjs/common';
 import { GraphService } from './graph.service';
+import { Response } from 'express';
 
 export class HistogramDto {
   start: string;
@@ -155,17 +156,22 @@ export class GraphController {
     const hist = await this.graphService.getHistograms(start, end, body.dtype);
     return hist;
   }
-
+  /**
+   * curl -H "Content-Type: application/json" -X POST -d '{"start": 0, "end": 1690950621, "dtype":"liqui", "page": 0, "pagesize": 10  }' 'http://127.0.0.1:3000/api/v1/graph/tables'
+   * curl -H "Content-Type: application/json" -X POST -d '{"start": 0, "end": 1690950621, "dtype":"opos", "page": 0, "pagesize": 10  }' 'http://127.0.0.1:3000/api/v1/graph/tables'
+   */
   @Post('tables')
   async tables(@Body() body: TableDto) {
-    const start = body.start;
-    const end = body.end;
-    const dtype = body.dtype;
-    await this.graphService.getTables(body);
+    this.logger.log(`body`);
+    this.logger.log(body);
+    const tables = await this.graphService.getTables(body);
+    return tables;
   }
 
   @Post('downloadtables')
-  async downloadtables() {
-    
+  async downloadtables(@Res() res: Response) {
+    // const filePath = await this.graphService.downloadTables();
+    const filePath = `public/test.txt`;
+    res.download(filePath);
   }
 }

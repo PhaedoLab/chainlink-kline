@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { HttpModule } from '@nestjs/axios';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ChainlinkController } from './chainlink/chainlink.controller';
@@ -6,7 +7,7 @@ import { ChainlinkService } from './chainlink/chainlink.service';
 import { ChainlinkModule } from './chainlink/chainlink.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Prices, Period } from './chainlink/chainlink.entiry';
+import { Prices, Period, CMCPrice } from './chainlink/chainlink.entiry';
 import { BaseController } from './base/base.controller';
 import { Emails, JEmails } from './base/base.entiry';
 import { BaseService } from './base/base.service';
@@ -20,7 +21,10 @@ import { LiquidationController } from './liquidation/liquidation.controller';
 import { LiquidationService } from './liquidation/liquidation.service';
 import { LiquidationModule } from './liquidation/liquidation.module';
 import { EthereumService } from './liquidation/ethereum.service';
-import { Collateral, RiskFund, USDStacked, Trade, Liquidation, Histogram, Trader } from './graph/graph.entiry';
+import { Collateral, RiskFund, USDStacked, Trade, Liquidation, Histogram, Trader, Trade3} from './graph/graph.entiry';
+import { CmcService } from './chainlink/cmc.service';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 @Module({
   imports: [
@@ -33,12 +37,22 @@ import { Collateral, RiskFund, USDStacked, Trade, Liquidation, Histogram, Trader
       username: 'jungle',
       password: '12345687',
       database: 'jungle',
-      entities: [Prices, Period, Emails, JEmails, Collateral, USDStacked, Trade, Liquidation, RiskFund, Histogram, Trader],
+      entities: [Prices, Period, Emails, JEmails, Collateral, USDStacked, Trade, Liquidation, RiskFund, Histogram, Trader, Trade3, CMCPrice],
       synchronize: true,
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'), // 指定文件存储的根目录
+      serveRoot: '/public', // 可选，设置公开访问的文件路径前缀
     }),
     BaseModule,
     GraphModule,
-    LiquidationModule
+    LiquidationModule,
+    HttpModule.register({
+      baseURL: "https://pro-api.coinmarketcap.com",
+      headers: {
+          "X-CMC_PRO_API_KEY": "c75d4f39-1cb7-4e13-aa77-402d685a103a"
+        }
+    }),  
   ],
   controllers: [AppController, ChainlinkController, BaseController, GraphController, LiquidationController],
   providers: [AppService, ChainlinkService, BaseService, GraphService,
@@ -51,7 +65,8 @@ import { Collateral, RiskFund, USDStacked, Trade, Liquidation, Histogram, Trader
       useClass: TransformInterceptor,
     },
     LiquidationService,
-    EthereumService
+    EthereumService,
+    CmcService
   ],
 })
 export class AppModule {}

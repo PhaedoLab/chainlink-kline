@@ -355,7 +355,7 @@ export class BaseService {
   async _sendCommonEmail(recepient: string, content: string, subject: string) {
     const sendEmailCommand = createSendEmailCommand(
       recepient,
-      "official@jungle.exchange",
+      "Jungle <official@jungle.exchange>",
       content, subject
     );
   
@@ -379,14 +379,14 @@ export class BaseService {
 
   async sendEmail(recepient: string) {
     this._sendTemplateEmail(recepient, 'welcome',
-      JSON.stringify({"official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/", "app_url": "https://main.d7u2msnczqldy.amplifyapp.com/"})
+      JSON.stringify({"official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/"})
     );
   }
   
   async _sendTemplateEmail(recepient: string, template: string, data: string = "{}") {
     const sendEmailCommand = createSendTemplatedEmailCommand(
       recepient,
-      "official@jungle.exchange",
+      "Jungle <official@jungle.exchange>",
       template, data
     );
   
