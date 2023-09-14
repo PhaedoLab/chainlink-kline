@@ -2,13 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { execute } from '../../.graphclient'
 import { BigNumber } from "ethers";
 import { Cron, Interval } from '@nestjs/schedule';
-import { Collateral, USDStacked, Trade, Liquidation, RiskFund, Histogram, Trader } from './graph.entiry';
+import { Collateral, USDStacked, Trade, Liquidation, RiskFund, Histogram, Trader, Trade3 } from './graph.entiry';
 import { InjectRepository } from '@nestjs/typeorm';
-import { InsertResult, Repository, DataSource } from 'typeorm';
+import { InsertResult, Repository, DataSource, Between, Not, In } from 'typeorm';
 import { EthereumService } from 'src/liquidation/ethereum.service';
 import { BaseService } from 'src/base/base.service';
 import { TableDto } from './graph.controller';
-import { table } from 'console';
+import Decimal from 'decimal.js';
 
 interface Counter {
   count: number,
@@ -43,6 +43,8 @@ export class GraphService {
     private usdRepository: Repository<USDStacked>,
     @InjectRepository(Trade)
     private tradeRepository: Repository<Trade>,
+    @InjectRepository(Trade3)
+    private trade3Repository: Repository<Trade3>,
     @InjectRepository(Liquidation)
     private liquiRepository: Repository<Liquidation>,
     @InjectRepository(Histogram)
@@ -838,6 +840,50 @@ export class GraphService {
       .getMany();
   }
 
+  findLiquidationJoin(timestamp: number): Promise<any> {
+    // return this.liquiRepository
+    //   .createQueryBuilder('usd')
+    //   .innerJoinAndSelect(Trade, 'trade', 'trade.hash = usd.hash',)
+    //   .where(`usd.timestamp = :timestamp`,
+    //     { timestamp: timestamp })
+    //   .getMany();
+    return this.liquiRepository.findOne({
+      where: {
+        id: 1,
+      },
+      relations: {
+          trades: true,
+      }
+    });
+  }
+
+  findDurationLiquidationRelation(start: number, end: number, ledger: string, account: string, page: number, pagesize: number): Promise<Liquidation[]> {
+    return this.liquiRepository.find({
+      where: {
+        timestamp: Between(`${start}`, `${end}`),
+        ledger: ledger? parseInt(ledger): Not(-1),
+        account: account? account: Not('')
+      },
+      relations: ['trades', 'trades.trades3'],
+      skip: page * pagesize,
+      take: pagesize
+    });
+  }
+
+  findDurationTradeRelation(start: number, end: number, ledger: string, account: string, page: number, pagesize: number, dtype: string): Promise<Trade[]> {
+    return this.tradeRepository.find({
+      where: {
+        timestamp: Between(`${start}`, `${end}`),
+        ledger: ledger? parseInt(ledger): Not(-1),
+        account: account? account: Not(''),
+        typet: dtype === 'opos'? In([1, 2]): (dtype === 'cpos'? 3: Not(-1))
+      },
+      relations: ['trades3'],
+      skip: page * pagesize,
+      take: pagesize
+    });
+  }
+
   findDurationLiquidation(start: number, end: number, query: string=''): Promise<Liquidation[]> {
     return this.liquiRepository
       .createQueryBuilder('usd')
@@ -861,6 +907,14 @@ export class GraphService {
       .getMany();
   }
 
+  findLiquidationByHash(hash: string): Promise<Liquidation> {
+    return this.liquiRepository
+      .createQueryBuilder('usd')
+      .where(`usd.hash = :hash`,
+        { hash })
+      .getOne();
+  }
+
   insertManyLiquis(liquis: Liquidation[]): Promise<InsertResult> {
     return this.liquiRepository.insert(liquis);
   }
@@ -872,7 +926,7 @@ export class GraphService {
   findDurationHistogram(start: number, end: number): Promise<Histogram[]> {
     return this.histRepository
       .createQueryBuilder('usd')
-      .where(`usd.timestamp >= :start and usd.timestamp <= :end`, 
+      .where(`usd.timestamp >= :start and usd.timestamp < :end`, 
         { start, end })
       .getMany();
   }
@@ -953,6 +1007,14 @@ export class GraphService {
       .getMany();
   }
 
+  findTradesByHash(hash: string): Promise<Trade[]> {
+    return this.tradeRepository
+      .createQueryBuilder('usd')
+      .where(`usd.hash < :hash`, 
+        { hash })
+      .getMany();
+  }
+
   findLastest24HTrade(timestamp: number): Promise<Trade[]> {
     return this.tradeRepository
       .createQueryBuilder('usd')
@@ -965,13 +1027,17 @@ export class GraphService {
     return this.tradeRepository.insert(usds);
   }
 
+  insertManyTrades3(usds: Trade3[]): Promise<InsertResult> {
+    return this.trade3Repository.insert(usds);
+  }
+
   @Cron('0 0 * * * *')
   async trackFromContracts() {
     await this.trackCollateral();
     await this.trackInsuFund();
 
     const hist = await this.findLastestHistogram();
-    if(!hist) {
+    if(hist) {
       const oneHour = 60 * 60; // 1小时的秒数
       let start = parseInt(hist.timestamp) + oneHour;
       let end = start + oneHour;
@@ -1021,8 +1087,8 @@ export class GraphService {
   @Cron('0 * * * * *')
   async trackTheGraph() {
     await this.trackUSDStacked();
-    await this.trackTrade();
     await this.trackLiquidation();
+    await this.trackTrade();
   }
 
   async trackTrade() {
@@ -1052,24 +1118,56 @@ export class GraphService {
 
     const result = await execute(myQuery, {})
     const trades = result.data?.trades;
-    const ctrades = trades.map((usd) => {
-      const trade: Trade = new Trade();
-      trade.ledger = usd.ledger;
-      trade.account = usd.account;
-      trade.currencyKey = usd.currencyKey;
-      trade.amount = usd.amount;
-      trade.keyPrice = usd.keyPrice;
-      trade.fee = usd.fee;
-      trade.typet = usd.type;
-      trade.totalVal = usd.totalVal;
-      trade.timestamp = usd.timestamp;
-      trade.eventid = usd.eventid;
-      trade.pnl = usd.pnl;
-      trade.hash = usd.hash;
-      return trade;
-    });
-    console.log();
+    const ctrades: Trade[] = [];
+    const ctrades3: Trade3[] = [];
+    const hashTotal = new Map<string, Trade>();
+    for(const usd of trades) {
+      this.logger.log(`type: type: type: ${usd.type}`);
+      if(usd.type === '3' && usd.currencyKey !== 'TOTAL') {
+        const trade: Trade3 = new Trade3();
+        trade.ledger = usd.ledger;
+        trade.account = usd.account;
+        trade.currencyKey = usd.currencyKey;
+        trade.amount = usd.amount;
+        trade.keyPrice = usd.keyPrice;
+        trade.fee = usd.fee;
+        trade.typet = usd.type;
+        trade.totalVal = usd.totalVal;
+        trade.timestamp = usd.timestamp;
+        trade.eventid = usd.eventid;
+        trade.pnl = usd.pnl;
+        trade.hash = usd.hash;
+        
+        ctrades3.push(trade);
+      } else {
+        const trade: Trade = new Trade();
+        trade.ledger = usd.ledger;
+        trade.account = usd.account;
+        trade.currencyKey = usd.currencyKey;
+        trade.amount = usd.amount;
+        trade.keyPrice = usd.keyPrice;
+        trade.fee = usd.fee;
+        trade.typet = usd.type;
+        trade.totalVal = usd.totalVal;
+        trade.timestamp = usd.timestamp;
+        trade.eventid = usd.eventid;
+        trade.pnl = usd.pnl;
+        trade.hash = usd.hash;
+        const liqui = await this.findLiquidationByHash(trade.hash);
+        trade.liquidation = liqui;
+        if(usd.type === '3') {
+          hashTotal.set(trade.hash, trade);
+        }
+        
+        ctrades.push(trade);
+      }
+    }
+    for(const trade3 of ctrades3) {
+      trade3.trade = hashTotal.get(trade3.hash);
+    }
+
     await this.insertManyTrades(ctrades);
+    await this.insertManyTrades3(ctrades3);
   }
 
   async trackUSDStacked() {
@@ -1127,7 +1225,8 @@ export class GraphService {
 
     const result = await execute(myQuery, {})
     const liquis = result.data?.liquidations;
-    const liquidations = liquis.map((liqui) => {
+    const liquidations: Liquidation[] = [];
+    for(const liqui of liquis) {
       const liquidation: Liquidation = new Liquidation();
       liquidation.ledger = liqui.ledger;
       liquidation.account = liqui.account;
@@ -1139,9 +1238,9 @@ export class GraphService {
       liquidation.eventid = liqui.eventid;
       liquidation.timestamp = liqui.timestamp;
       liquidation.hash = liqui.hash;
-      
-      return liquidation;
-    });
+
+      liquidations.push(liquidation);
+    }
     await this.insertManyLiquis(liquidations);
   }
 
@@ -1322,44 +1421,106 @@ export class GraphService {
     const start = tableDto.start;
     const end = tableDto.end;
     const dtype = tableDto.dtype;
-    const page = parseInt(tableDto.page);
-    const pageSize = parseInt(tableDto.pagesize);
-    const limit = `limit ${page * pageSize}, ${pageSize}`
+    const page = tableDto.page? parseInt(tableDto.page): 0;
+    const pageSize = tableDto.pagesize? parseInt(tableDto.pagesize): 10000;
     const ledger = this.ledgers.get(tableDto.debtpool)? this.ledgers.get(tableDto.debtpool): null;
-    const ledgerQuery = ledger? `ledger = ${ledger}`: 'ledger is not null';
     const account = tableDto.account;
-    const accountQuery = account? `account = ${account}`: 'account is not null';
-    let trades: Trade[];
-    if(dtype === 'opos') {
-      const appendQuery = `and ${ledgerQuery} and ${accountQuery} and typet in (1,2) ${limit}`;
-      trades = await this.findDurationTrades(parseInt(start), parseInt(end), appendQuery);
-    } else if(dtype === 'cpos') {
-      const appendQuery = `and ${ledgerQuery} and ${accountQuery} and typet = 3 ${limit}`;
-      trades = await this.findDurationTrades(parseInt(start), parseInt(end), appendQuery);
-    } else if(dtype === 'pos') {
-      const appendQuery = `and ${ledgerQuery} and ${accountQuery} ${limit}`;
-      trades = await this.findDurationTrades(parseInt(start), parseInt(end), appendQuery);
-    } else if(dtype === 'liqui') {
-      const appendQuery = `and ${ledgerQuery} and ${accountQuery} ${limit}`;
-      const liquis = await this.findDurationLiquidation(parseInt(start), parseInt(end), appendQuery);
+    if(dtype === 'liqu') {
+      const liquis = await this.findDurationLiquidationRelation(parseInt(start), parseInt(end), ledger, account, page, pageSize);
+      this.logger.log(`liquis items`);
+      this.logger.log(liquis);
+      const liquiArr = [];
+      for(const liqui of liquis) {
+        const trades = liqui.trades;
+        let totalTrade = this.divDecimal(trades[0].totalVal);
+        let tradingfee = trades[0].fee;
+        const synths = [];
+        for(const trade of trades[0].trades3) {
+          synths.push({
+            name: trade.currencyKey,
+            amount: trade.amount,
+            price: trade.keyPrice
+          });
+        }
 
+        let remain = BigInt(totalTrade) + BigInt(liqui.collateral) - BigInt(liqui.debt) - BigInt(tradingfee);
+        remain = remain < 0? BigInt(0): remain;
+
+        const decimal = new Decimal(liqui.debt);
+        const debtratio = decimal.div(new Decimal(liqui.totalDebt));
+        const debtratioValue = debtratio.toNumber();
+
+        const decimal2 = new Decimal((BigInt(totalTrade) - BigInt(liqui.debt)).toString());
+        const pnlrate = decimal2.div(new Decimal(liqui.collateral));
+        const pnlrateValue = pnlrate.toNumber();
+
+        liquiArr.push({
+          'address': liqui.account,
+          'timestamp': liqui.timestamp,
+          'network': 'Arbitrum',
+          'debtpool': tableDto.debtpool,
+          'type': liqui.normal === 1? 'nliqu': 'abliqu',
+          'size': totalTrade,
+          'tradingfee': tradingfee,
+          'remain': remain.toString(),
+          'collateral': liqui.collateral,
+          synths,
+          'snapshot': {
+            'adebt': liqui.debt,
+            'tdebt': liqui.totalDebt,
+            'collateral': liqui.collateral,
+            'pnl': (BigInt(totalTrade) - BigInt(liqui.debt)).toString(),
+            'pnlrate': pnlrateValue,
+            'debtratio': debtratioValue
+          }
+        });
+      }
+      return liquiArr;
+    }
+
+    if(dtype === 'opos') {
+    } else if(dtype === 'cpos') {
+    } else if(dtype === 'pos') {
     } else {
       throw new Error(`Error dtype: ${dtype}`);
     }
+    const trades = await this.findDurationTradeRelation(parseInt(start), parseInt(end), ledger, account, page, pageSize, dtype);
     if(trades) {
-
+      const tradesArr = [];
+      for(const trade of trades) {
+        const synths = [];
+        if(trade.typet === 3) {
+          for(const trade3 of trade.trades3) {
+            synths.push({
+              name: trade3.currencyKey,
+              amount: trade3.amount,
+              price: trade3.keyPrice
+            });
+          }
+        } else {
+          synths.push({
+            name: trade.currencyKey,
+            amount: trade.amount,
+            price: trade.keyPrice
+          });
+        }
+        tradesArr.push({
+          'address': trade.account,
+          'timestamp': trade.timestamp,
+          'network': 'Arbitrum',
+          'debtpool': tableDto.debtpool,
+          'type': trade.typet === 3? 'close': 'open',
+          'size': this.divDecimal(trade.totalVal),
+          'tradingfee': trade.fee,
+          synths
+        });
+      }
+      return tradesArr;
     }
+    return trades;
   }
 
-  async _getTrades() {
-
-  }
-
-  async _getLiquidation() {
-
-  }
-
-  async downloadTables() {
+  async downloadTables(tableDto: TableDto) {
 
   }
 

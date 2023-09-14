@@ -69,3 +69,10 @@ export const contractXAU = new ethers.Contract(addrXAU, aggregatorV3InterfaceABI
 export const contractEUR = new ethers.Contract(addrEUR, aggregatorV3InterfaceABI, provider);
 export const contractGBP = new ethers.Contract(addrGBP, aggregatorV3InterfaceABI, provider);
 export const contractJPY = new ethers.Contract(addrJPY, aggregatorV3InterfaceABI, provider);
+
+const addrTSLA = "0x567E67f456c7453c583B6eFA6F18452cDee1F5a8"; // TSLA / USD
+const addrSPY = "0x187c42f6C0e7395AeA00B1B30CB0fF807ef86d5d"; // SPY / USD
+const addrGOOGL = "0x1b32682C033b2DD7EFdC615FA82d353e254F39b5"; // GOOGL / USD
+export const contractTSLA = new ethers.Contract(addrTSLA, aggregatorV3InterfaceABI, provider);
+export const contractSPY = new ethers.Contract(addrSPY, aggregatorV3InterfaceABI, provider);
+export const contractGOOGL = new ethers.Contract(addrGOOGL, aggregatorV3InterfaceABI, provider);

@@ -57,3 +57,27 @@ export class Period {
   @Column({ type: 'varchar', length: 30, nullable: false })
   t: string;
 }
+
+@Entity('cmcprice')
+export class CMCPrice {
+  @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
+  id: number;
+
+  @Column({ name: 'token_name',type: 'varchar', length: 20, nullable: false })
+  tokenName: string;
+
+  @Column({ type: 'double', nullable: false })
+  o: number;
+
+  @Column({ type: 'double', nullable: false })
+  c: number;
+
+  @Column({ type: 'double', nullable: false })
+  h: number;
+
+  @Column({ type: 'double', nullable: false })
+  l: number;
+
+  @Column({ type: 'varchar', length: 30, nullable: false })
+  t: string;
+}

@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToOne, JoinColumn, OneToMany, ManyToOne } from 'typeorm';
 
 @Entity('usdstacked')
 export class USDStacked {
@@ -55,6 +55,45 @@ export class RiskFund {
   timestamp: string;
 }
 
+@Entity('liquidation')
+export class Liquidation {
+  @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
+  id: number;
+
+  @Column({ name: 'ledger', type: 'tinyint', default: -1, nullable: true })
+  ledger: number;
+
+  @Column({ name: 'account', type: 'varchar', length: 50, default: '', nullable: true })
+  account: string;
+
+  @Column({ name: 'operator', type: 'varchar', length: 50, default: '', nullable: true })
+  operator: string;
+
+  @Column({ name: 'collateral', type: 'varchar', length: 50, default: '', nullable: true })
+  collateral: string;
+
+  @Column({ name: 'debt', type: 'varchar', length: 100, default: '', nullable: true })
+  debt: string;
+  
+  @Column({ name: 'totalDebt', type: 'varchar', length: 50, default: '', nullable: true })
+  totalDebt: string;
+
+  @Column({ name: 'normal', type: 'tinyint', default: -1, nullable: true })
+  normal: number;
+
+  @Column({ name: 'eventid', type: 'varchar', length: 60, default: '', nullable: true })
+  eventid: string;
+
+  @Column({ name: 'timestamp', type: 'varchar', length: 50, default: '', nullable: true })
+  timestamp: string;
+
+  @Column({ name: 'hash', type: 'varchar', length: 100, default: '', nullable: true })
+  hash: string;
+
+  @OneToMany((type) => Trade, (trade) => trade.liquidation)
+  trades: Trade[]
+}
+
 @Entity('trade')
 export class Trade {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
@@ -95,11 +134,16 @@ export class Trade {
 
   @Column({ name: 'hash', type: 'varchar', length: 100, default: '', nullable: true })
   hash: string;
+
+  @ManyToOne((type) => Liquidation, (liquidation) => liquidation.trades)
+  liquidation: Liquidation;
+
+  @OneToMany((type) => Trade3, (trade3) => trade3.trade)
+  trades3: Trade3[]
 }
 
-
-@Entity('liquidation')
-export class Liquidation {
+@Entity('trade3')
+export class Trade3 {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;
 
@@ -109,29 +153,38 @@ export class Liquidation {
   @Column({ name: 'account', type: 'varchar', length: 50, default: '', nullable: true })
   account: string;
 
-  @Column({ name: 'operator', type: 'varchar', length: 50, default: '', nullable: true })
-  operator: string;
+  @Column({ name: 'currencykey', type: 'varchar', length: 50, default: '', nullable: true })
+  currencyKey: string;
 
-  @Column({ name: 'collateral', type: 'varchar', length: 50, default: '', nullable: true })
-  collateral: string;
-
-  @Column({ name: 'debt', type: 'varchar', length: 100, default: '', nullable: true })
-  debt: string;
+  @Column({ name: 'amount', type: 'varchar', length: 100, default: '', nullable: true })
+  amount: string;
   
-  @Column({ name: 'totalDebt', type: 'varchar', length: 50, default: '', nullable: true })
-  totalDebt: string;
+  @Column({ name: 'keyprice', type: 'varchar', length: 50, default: '', nullable: true })
+  keyPrice: string;
 
-  @Column({ name: 'normal', type: 'tinyint', default: -1, nullable: true })
-  normal: number;
+  @Column({ name: 'fee', type: 'varchar', length: 100, default: '', nullable: true })
+  fee: string;
 
-  @Column({ name: 'eventid', type: 'varchar', length: 60, default: '', nullable: true })
-  eventid: string;
+  @Column({ name: 'typet', type: 'tinyint', default: -1, nullable: true })
+  typet: number;
+
+  @Column({ name: 'totalval', type: 'varchar', length: 100, default: '', nullable: true })
+  totalVal: string;
 
   @Column({ name: 'timestamp', type: 'varchar', length: 50, default: '', nullable: true })
   timestamp: string;
 
+  @Column({ name: 'eventid', type: 'varchar', length: 60, default: '', nullable: true })
+  eventid: string;
+
+  @Column({ name: 'pnl', type: 'varchar', length: 100, default: '', nullable: true })
+  pnl: string;
+
   @Column({ name: 'hash', type: 'varchar', length: 100, default: '', nullable: true })
   hash: string;
+
+  @ManyToOne((type) => Trade, (trade) => trade.trades3)
+  trade: Trade;
 }
 
 @Entity('histogram')

@@ -2,10 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { contractBTC, contractETH, contractLINK, contractXAU, contractEUR, contractGBP, contractJPY } from './chainlink.config';
-import { Period, Prices } from './chainlink.entiry';
+import { contractBTC, contractETH, contractLINK, contractXAU, 
+    contractEUR, contractGBP, contractJPY, contractTSLA, contractSPY, contractGOOGL } from './chainlink.config';
+import { CMCPrice, Period, Prices } from './chainlink.entiry';
 import { Repository, InsertResult } from 'typeorm';
 import { ethers } from 'ethers';
+import Decimal from 'decimal.js';
 
 enum SynthType {
   Crypto,
@@ -36,9 +38,11 @@ export class ChainlinkService {
     private pricesRepository: Repository<Prices>,
     @InjectRepository(Period)
     private periodRepository: Repository<Period>,
+    @InjectRepository(CMCPrice)
+    private cmcPriceRepository: Repository<CMCPrice>,
   ) {
     this.intervalRunning = false;
-    this.tokenNames = ['BTC', 'ETH', 'LINK', 'XAU', 'EUR', 'GBP', 'JPY'];
+    this.tokenNames = ['BTC', 'ETH', 'LINK', 'XAU', 'EUR', 'GBP', 'JPY', 'TSLA', 'SPY', 'GOOGL'];
     this.periods = ['5m', '15m', '1h', '4h', '1d'];
     this.lastestPrice = new Map<string, Prices>();
     this.tPeriodPositions = new Map<string, Map<string, object>>();
@@ -197,6 +201,12 @@ export class ChainlinkService {
       contract = contractGBP;
     } else if(tokenName === 'JPY') {
       contract = contractJPY;
+    } else if(tokenName === 'TSLA') {
+      contract = contractTSLA;
+    } else if(tokenName === 'SPY') {
+      contract = contractJPY;
+    } else if(tokenName === 'GOOGL') {
+      contract = contractGOOGL;
     } else {
       throw "Bad Token Name.";
     }
@@ -793,10 +803,12 @@ export class ChainlinkService {
   //            Website        //
   // ========================= //
   
-  async getTokenInfo(tokenName: string, num: number=40) {
-
+  async getTokenInfo(tokenName: string, num: number=48) {
+    if(['ARB', 'UNI', 'APE', 'BAL', 'GMX', 'AAVE'].includes(tokenName)) {
+      return await this.getCmcPrirces(tokenName);
+    }
     const st = new Date().getTime();
-    const candlesPro = this.getCandles(tokenName, '1h', num, 'false');
+    const candlesPro = this.getCandles(tokenName, '15m', num, 'false');
     const priceChgPro = this.get24hPrices(tokenName);
     const [candles, priceChg] = await Promise.all([candlesPro, priceChgPro]);
 
@@ -807,6 +819,61 @@ export class ChainlinkService {
       'prices': prices,
       'price': priceChg['price'],
       'price24b': priceChg['price24b'],
+    }
+  }
+
+  findStep15CMCPrice(tokenName: string, timestamp: number): Promise<CMCPrice[] | null> {
+    return this.cmcPriceRepository
+      .createQueryBuilder('price')
+      .where("price.token_name = :tokenName and price.t >= :timestamp", 
+        { tokenName: tokenName, timestamp: timestamp })
+      .andWhere("MOD(MINUTE(FROM_UNIXTIME(price.t)), 15) = 0")
+      .limit(48)
+      .orderBy('price.id', 'DESC')
+      .getMany();
+  }
+  
+  findLastestCMCPrice(tokenName: string): Promise<CMCPrice | null> {
+    return this.cmcPriceRepository
+      .createQueryBuilder('price')
+      .where("price.token_name = :tokenName", { tokenName: tokenName })
+      .orderBy('price.id', 'DESC')
+      .getOne();
+  }
+
+  _getYesterday(): Date {
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1); // 获取昨天的日期
+    yesterday.setMinutes(0);
+    yesterday.setSeconds(0);
+    yesterday.setMilliseconds(0);
+    return yesterday;
+  }
+
+  async getCmcPrirces(tokenName: string) {
+    const yest = this._getYesterday();
+    const itemsPro = this.findStep15CMCPrice(tokenName, Math.round(yest.getTime() / 1000));
+    const pricePro = this.findLastestCMCPrice(tokenName);
+    const [items, price] = await Promise.all([itemsPro, pricePro]);
+    const newItems = price?.t === items[0]?.t? items: [price].concat(items);
+
+    const prices = newItems.map((item) => {
+      const decimal = new Decimal(item.c);
+      const multiplied = decimal.times('1e8');
+      const numValue = multiplied.toNumber();
+      return {
+        c: numValue,
+        o: numValue,
+        h: numValue,
+        l: numValue,
+        t: `${parseInt(item.t) * 1000}`
+      }
+    });
+    return {
+      prices: prices,
+      price: prices[0].c,
+      price24b: prices[prices.length - 1].c
     }
   }
 }
