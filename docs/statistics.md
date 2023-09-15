@@ -123,7 +123,7 @@ POST方式，须带上http请求头
 | pagesize   |Number | 每页的数据大小  |
 | account   |String | 账户地址，如果为空说明不限定地址  |
 | network   |String | 网络名称，有Arbitrum / zkSync两个，目前只有Arbitrum  |
-| account   |String | 账户地址，如果为空说明不限定地址  |
+| order   |String | 结果排序方式， 'asc'和'desc'两种  |
 | ledger  | number | 债务池id |
 
 ### 返回值
@@ -259,6 +259,7 @@ POST方式，须带上http请求头
 | account   |String | 账户地址，如果为空说明不限定地址  |
 | network   |String | 网络名称，有Arbitrum / zkSync两个，目前只有Arbitrum  |
 | debtpool  | String | 债务池名称 |
+| order   |String | 结果排序方式， 'asc'和'desc'两种  |
 
 ### 返回值
 
