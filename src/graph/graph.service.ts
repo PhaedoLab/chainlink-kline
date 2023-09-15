@@ -877,6 +877,18 @@ export class GraphService {
     });
   }
 
+  findDurationLiquidationRelationNum(start: number, end: number, ledger: string, account: string, page: number, pagesize: number, order: string, dtype: string): Promise<number> {
+    return this.liquiRepository.count({
+      where: {
+        timestamp: Between(`${start}`, `${end}`),
+        ledger: ledger? parseInt(ledger): Not(-1),
+        account: account? account: Not(''),
+        normal: dtype === 'liqu'? Not(-1): (dtype === 'nliqu'? 1: 0)
+      },
+
+    });
+  }
+
   findDurationTradeRelation(start: number, end: number, ledger: string, account: string, page: number, pagesize: number, dtype: string, order: string): Promise<Trade[]> {
     return this.tradeRepository.find({
       where: {
@@ -890,6 +902,17 @@ export class GraphService {
       take: pagesize,
       order: {
         id: order === 'asc'? 'ASC': 'DESC'
+      }
+    });
+  }
+
+  findDurationTradeRelationNum(start: number, end: number, ledger: string, account: string, page: number, pagesize: number, dtype: string, order: string): Promise<number> {
+    return this.tradeRepository.count({
+      where: {
+        timestamp: Between(`${start}`, `${end}`),
+        ledger: ledger? parseInt(ledger): Not(-1),
+        account: account? account: Not(''),
+        typet: dtype === 'opos'? In([1, 2]): (dtype === 'cpos'? 3: Not(-1))
       }
     });
   }
@@ -1437,6 +1460,7 @@ export class GraphService {
     const account = tableDto.account;
     if(dtype === 'liqu' || dtype === 'nliqu' || dtype === 'abliqu') {
       const liquis = await this.findDurationLiquidationRelation(parseInt(start), parseInt(end), ledger, account, page, pageSize, tableDto.order, dtype);
+      const liquiNum = await this.findDurationLiquidationRelationNum(parseInt(start), parseInt(end), ledger, account, page, pageSize, tableDto.order, dtype)
       this.logger.log(`liquis items`);
       this.logger.log(liquis);
       const liquiArr = [];
@@ -1486,7 +1510,11 @@ export class GraphService {
           }
         });
       }
-      return liquiArr;
+      return {
+        data: liquiArr,
+        count: liquiNum,
+        decimals: 18
+      };
     }
 
     if(dtype === 'opos') {
@@ -1496,6 +1524,7 @@ export class GraphService {
       throw new Error(`Error dtype: ${dtype}`);
     }
     const trades = await this.findDurationTradeRelation(parseInt(start), parseInt(end), ledger, account, page, pageSize, dtype, tableDto.order);
+    const tradesNum = await this.findDurationTradeRelationNum(parseInt(start), parseInt(end), ledger, account, page, pageSize, dtype, tableDto.order);
     if(trades) {
       const tradesArr = [];
       for(const trade of trades) {
@@ -1527,7 +1556,11 @@ export class GraphService {
           synths
         });
       }
-      return tradesArr;
+      return {
+        data: tradesArr,
+        count: tradesNum,
+        decimals: 18
+      }
     }
     return trades;
   }

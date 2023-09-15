@@ -25,18 +25,20 @@ import { Collateral, RiskFund, USDStacked, Trade, Liquidation, Histogram, Trader
 import { CmcService } from './chainlink/cmc.service';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
     ChainlinkModule,
     ScheduleModule.forRoot(),
+    ConfigModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'mysql',
-      host: '172.31.7.187',
+      host: '127.0.0.1',
       port: 3306,
-      username: 'jungle',
-      password: '12345687',
-      database: 'jungle',
+      username: 'root',
+      password: '',
+      database: 'test',
       entities: [Prices, Period, Emails, JEmails, Collateral, USDStacked, Trade, Liquidation, RiskFund, Histogram, Trader, Trade3, CMCPrice],
       synchronize: true,
     }),

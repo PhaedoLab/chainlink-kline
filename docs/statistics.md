@@ -118,13 +118,13 @@ POST方式，须带上http请求头
 | ---------- |  ----------- | -------------------------------------------------- |
 | start   |Number | 开始时间戳 |
 | end   |Number | 结束时间戳 |
-| dtype  | String | 数据类型，有opos/cpos/pos/liqu四种，分别代表开仓/关仓/开关仓/清算 |
+| dtype  | String | 数据类型，有opos/cpos/pos/nliqu/abliqu/liqu六种，分别代表开仓/关仓/开关仓/正常清算/异常清算/清算 |
 | page   |Number | 页数，从0开始  |
 | pagesize   |Number | 每页的数据大小  |
 | account   |String | 账户地址，如果为空说明不限定地址  |
 | network   |String | 网络名称，有Arbitrum / zkSync两个，目前只有Arbitrum  |
 | account   |String | 账户地址，如果为空说明不限定地址  |
-| debtpool  | String | 债务池名称 |
+| ledger  | number | 债务池id |
 
 ### 返回值
 
@@ -134,6 +134,7 @@ POST方式，须带上http请求头
 | ---------- | ---- | ----------- | -------------------------------------------------- |
 | data   | Object Of Item(Object) | 数据部分 |
 | decimals  | Number | incre和cumul部分的精度，默认18 |
+| count  | Number | 总体数据量多少 |
 
 **Item**(Object)数据格式
 
@@ -143,6 +144,7 @@ POST方式，须带上http请求头
 | address  | String | 钱包地址 |
 | network  | String | 网络名称，有Arbitrum / zkSync两个，目前只有Arbitrum |
 | debtpool  | String | 债务池名称 |
+| ledger  | number | 债务池id |
 | type  | String | 类型，包括open/close/nliqu/abliqu四种类型  |
 | synths  | Array Of Synth(Object) | 合成资产 |
 | size  | String | 资产规模 |
@@ -164,6 +166,9 @@ POST方式，须带上http请求头
 | tdebt   | String | 总债务 |
 | adebt  | String | 活跃债务 |
 | collateral  | String | 质押金额  |
+| pnl  | String | 未实现盈亏  |
+| pnlrate  | number |  未实现盈亏比例 |
+| debtratio  | number | 债务比例  |
 
 
 **返回样例**
@@ -251,13 +256,10 @@ POST方式，须带上http请求头
 | start   |Number | 开始时间戳 |
 | end   |Number | 结束时间戳 |
 | dtype  | String | 数据类型，有opos/cpos/pos/liqu四种，分别代表开仓/关仓/开关仓/清算 |
-| page   |Number | 页数，从0开始  |
-| pagesize   |Number | 每页的数据大小  |
 | account   |String | 账户地址，如果为空说明不限定地址  |
 | network   |String | 网络名称，有Arbitrum / zkSync两个，目前只有Arbitrum  |
-| account   |String | 账户地址，如果为空说明不限定地址  |
 | debtpool  | String | 债务池名称 |
 
 ### 返回值
 
-返回一个excel文档，包含需要的数据
+同**Tables**返回
