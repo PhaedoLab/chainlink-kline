@@ -828,7 +828,7 @@ export class ChainlinkService {
       .where("price.token_name = :tokenName and price.t >= :timestamp", 
         { tokenName: tokenName, timestamp: timestamp })
       .andWhere("MOD(MINUTE(FROM_UNIXTIME(price.t)), 15) = 0")
-      .limit(48)
+      .limit(90)
       .orderBy('price.id', 'DESC')
       .getMany();
   }
