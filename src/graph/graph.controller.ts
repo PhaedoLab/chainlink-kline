@@ -16,7 +16,8 @@ export class TableDto {
   pagesize: string;
   account: string; //
   network: string;
-  debtpool: string; //
+  ledger: number; //
+  order: string;
 }
 
 @Controller('api/v1/graph')

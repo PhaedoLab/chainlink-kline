@@ -33,6 +33,7 @@ export class GraphService {
   private readonly totalData: Map<Hist, string>;
   private readonly uniTraders: Set<string>;
   private ledgers: Map<string, string>;
+  private reverseLedgers: Map<string, string>;
 
   constructor(
     @InjectRepository(Collateral)
@@ -60,12 +61,14 @@ export class GraphService {
     this.initTotalData();
 
     this.ledgers = new Map<string, string>();
+    this.reverseLedgers = new Map<string, string>();
     this.ethereumService.allLedgers().then((ledgers) => {
       const ids = ledgers[0];
       const names = ledgers[1];
       for(let i = 0; i < ids.length; i++) {
         console.log(ids[i].toString());
         this.ledgers.set(names[i], ids[i].toString());
+        this.reverseLedgers.set(ids[i].toString(), names[i]);
       }
       console.log(this.ledgers);
       console.log(this.ledgers.get('0'));
@@ -857,20 +860,24 @@ export class GraphService {
     });
   }
 
-  findDurationLiquidationRelation(start: number, end: number, ledger: string, account: string, page: number, pagesize: number): Promise<Liquidation[]> {
+  findDurationLiquidationRelation(start: number, end: number, ledger: string, account: string, page: number, pagesize: number, order: string, dtype: string): Promise<Liquidation[]> {
     return this.liquiRepository.find({
       where: {
         timestamp: Between(`${start}`, `${end}`),
         ledger: ledger? parseInt(ledger): Not(-1),
-        account: account? account: Not('')
+        account: account? account: Not(''),
+        normal: dtype === 'liqu'? Not(-1): (dtype === 'nliqu'? 1: 0)
       },
       relations: ['trades', 'trades.trades3'],
       skip: page * pagesize,
-      take: pagesize
+      take: pagesize,
+      order: {
+        id: order === 'asc'? 'ASC': 'DESC'
+      }
     });
   }
 
-  findDurationTradeRelation(start: number, end: number, ledger: string, account: string, page: number, pagesize: number, dtype: string): Promise<Trade[]> {
+  findDurationTradeRelation(start: number, end: number, ledger: string, account: string, page: number, pagesize: number, dtype: string, order: string): Promise<Trade[]> {
     return this.tradeRepository.find({
       where: {
         timestamp: Between(`${start}`, `${end}`),
@@ -880,7 +887,10 @@ export class GraphService {
       },
       relations: ['trades3'],
       skip: page * pagesize,
-      take: pagesize
+      take: pagesize,
+      order: {
+        id: order === 'asc'? 'ASC': 'DESC'
+      }
     });
   }
 
@@ -1423,10 +1433,10 @@ export class GraphService {
     const dtype = tableDto.dtype;
     const page = tableDto.page? parseInt(tableDto.page): 0;
     const pageSize = tableDto.pagesize? parseInt(tableDto.pagesize): 10000;
-    const ledger = this.ledgers.get(tableDto.debtpool)? this.ledgers.get(tableDto.debtpool): null;
+    const ledger = tableDto.ledger? tableDto.ledger.toString(): null;
     const account = tableDto.account;
-    if(dtype === 'liqu') {
-      const liquis = await this.findDurationLiquidationRelation(parseInt(start), parseInt(end), ledger, account, page, pageSize);
+    if(dtype === 'liqu' || dtype === 'nliqu' || dtype === 'abliqu') {
+      const liquis = await this.findDurationLiquidationRelation(parseInt(start), parseInt(end), ledger, account, page, pageSize, tableDto.order, dtype);
       this.logger.log(`liquis items`);
       this.logger.log(liquis);
       const liquiArr = [];
@@ -1458,7 +1468,8 @@ export class GraphService {
           'address': liqui.account,
           'timestamp': liqui.timestamp,
           'network': 'Arbitrum',
-          'debtpool': tableDto.debtpool,
+          'ledger': liqui.ledger,
+          'debtpool': this.reverseLedgers.get(liqui.ledger.toString()),
           'type': liqui.normal === 1? 'nliqu': 'abliqu',
           'size': totalTrade,
           'tradingfee': tradingfee,
@@ -1484,7 +1495,7 @@ export class GraphService {
     } else {
       throw new Error(`Error dtype: ${dtype}`);
     }
-    const trades = await this.findDurationTradeRelation(parseInt(start), parseInt(end), ledger, account, page, pageSize, dtype);
+    const trades = await this.findDurationTradeRelation(parseInt(start), parseInt(end), ledger, account, page, pageSize, dtype, tableDto.order);
     if(trades) {
       const tradesArr = [];
       for(const trade of trades) {
@@ -1508,7 +1519,8 @@ export class GraphService {
           'address': trade.account,
           'timestamp': trade.timestamp,
           'network': 'Arbitrum',
-          'debtpool': tableDto.debtpool,
+          'ledger': trade.ledger,
+          'debtpool': this.reverseLedgers.get(trade.ledger.toString()),
           'type': trade.typet === 3? 'close': 'open',
           'size': this.divDecimal(trade.totalVal),
           'tradingfee': trade.fee,

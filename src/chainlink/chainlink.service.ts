@@ -166,7 +166,7 @@ export class ChainlinkService {
     return timestamp;
   }
 
-  @Interval(10000)
+  @Interval(20000)
   async handleInterval() {
     if(this.intervalRunning) {
       this.logger.log('Interval is running.');
