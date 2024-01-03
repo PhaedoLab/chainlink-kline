@@ -42,7 +42,7 @@ export class ChainlinkService {
     private cmcPriceRepository: Repository<CMCPrice>,
   ) {
     this.intervalRunning = false;
-    this.tokenNames = ['BTC', 'ETH', 'LINK', 'XAU', 'EUR', 'GBP', 'JPY', 'TSLA', 'SPY', 'GOOGL'];
+    this.tokenNames = ['BTC', 'ETH'];
     this.periods = ['5m', '15m', '1h', '4h', '1d'];
     this.lastestPrice = new Map<string, Prices>();
     this.tPeriodPositions = new Map<string, Map<string, object>>();
@@ -67,6 +67,18 @@ export class ChainlinkService {
       const periodPositions = new Map<string, object>();
       for(const period of this.periods) {
         const candles = await this.findLastestCandles(tokenName, period, 1);
+        console.log("candles");
+        console.log(candles);
+        if(candles.length == 0) {
+          const obj = {
+            'h': '0',
+            'l': '0',
+            'o': '0',
+            'c': '0'
+          };
+          periodPositions.set(period, obj);
+          continue
+        }
         let open: string;
         if(candles.length === 1) {
           open = '' + candles[0].c;
@@ -86,7 +98,6 @@ export class ChainlinkService {
           'c': price.answer
         };
         periodPositions.set(period, obj);
-        console.log(tokenName, obj);
       }
       this.tPeriodPositions.set(tokenName, periodPositions);
     }
@@ -166,7 +177,7 @@ export class ChainlinkService {
     return timestamp;
   }
 
-  @Interval(20000)
+  @Interval(5000)
   async handleInterval() {
     if(this.intervalRunning) {
       this.logger.log('Interval is running.');
@@ -211,6 +222,7 @@ export class ChainlinkService {
       throw "Bad Token Name.";
     }
     const lastRound = await contract.latestRoundData();
+    console.log('lastRound', tokenName, lastRound);
     
     const roundId = BigInt(lastRound.roundId);
     const bias = BigInt("0xFFFFFFFFFFFFFFFF");

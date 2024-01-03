@@ -17,6 +17,12 @@ export class Emails {
 
   @Column({ name: 'updated_at', type: 'varchar', length: 50, default: '', nullable: true })
   updatedAt: string;
+
+  @Column({ name: 'active', type: 'tinyint', default: 1, nullable: true })
+  active: number;
+
+  @Column({ name: 'code', type: 'varchar', length: 50, default: '', nullable: true })
+  code: string;
 }
 
 

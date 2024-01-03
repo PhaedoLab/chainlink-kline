@@ -3,6 +3,7 @@ import { BaseService } from './base.service';
 
 export class EmailDto {
   recepient: string;
+  code: string;
 }
 
 export class EmailOpenCloseDto {
@@ -140,6 +141,12 @@ export class BaseController {
    @Post('send_email')
     async sendEmail(@Body() emailDto: EmailDto): Promise<any> {
       const data = this.baseService.sendEmail(emailDto.recepient);
+      return data;
+    }
+
+    @Post('unsubscribe')
+    async unsubscribe(@Body() emailDto: EmailDto): Promise<any> {
+      const data = this.baseService.unsubscribe(emailDto.recepient, emailDto.code);
       return data;
     }
   

@@ -6,7 +6,7 @@ import { Emails, JEmails } from "./base.entiry";
 import { Repository, InsertResult, UpdateResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as crypto from 'crypto';
-import { Account } from 'aws-sdk';
+
 
 const sesClient = new SESClient({ region: 'us-west-1' });
 const createSendEmailCommand = (toAddress, fromAddress, content, subject) => {
@@ -46,7 +46,7 @@ const createSendEmailCommand = (toAddress, fromAddress, content, subject) => {
   });
 };
 
-const createSendTemplatedEmailCommand = (toAddress, fromAddress, template, data) => {
+const createSendTemplatedEmailCommand = (toAddress, fromAddress, template, data, unsub='') => {
   return new SendTemplatedEmailCommand({
     Destination: {
       /* required */
@@ -64,6 +64,12 @@ const createSendTemplatedEmailCommand = (toAddress, fromAddress, template, data)
     ReplyToAddresses: [
       /* more items */
     ],
+    // Tags: [
+    //   {
+    //     Name: "List-Unsubscribe",
+    //     Value: unsub,
+    //   },
+    // ]
   });
 };
 
@@ -82,16 +88,25 @@ export class BaseService {
    * Mysql Emails operation
    */
 
-  findBundleEmails(account: string): Promise<Emails> {
+  findBundleEmails(email: string): Promise<Emails> {
     return this.emailsRepository
       .createQueryBuilder('email')
-      .where(`email.account = :account`, 
-        { account: account })
+      .where(`email.email = :email`, 
+        { email: email })
       .getOne();
   }
 
   insertManyEmails(emails: Emails[]): Promise<InsertResult> {
     return this.emailsRepository.insert(emails);
+  }
+
+  updateBundleEmails(newEmail: string, active: number, code): Promise<UpdateResult> {
+    return this.emailsRepository
+      .createQueryBuilder()
+      .update(Emails)
+      .set({ active, code })
+      .where("email = :email", { email: newEmail })
+      .execute();
   }
 
   /**
@@ -147,13 +162,13 @@ export class BaseService {
     return {
       chain,
       usdc: {
-        swap: 'https://uniswap.org/',
-        buy: 'https://uniswap.org/',
-        bridge: 'https://uniswap.org/'
+        swap: 'https://app.uniswap.org/#/swap',
+        buy: 'https://www.moonpay.com/buy',
+        bridge: 'https://testnet.layerswap.io/'
       },
       eth: {
-        buy: 'https://uniswap.org/',
-        bridge: 'https://uniswap.org/'
+        buy: 'https://buy.simplex.com/',
+        bridge: 'https://bridge.arbitrum.io/'
       }
     }
   }
@@ -377,17 +392,53 @@ export class BaseService {
     }
   }
 
-  async sendEmail(recepient: string) {
+  async sendEmail(recepient: string, account: string='') {
+    const code = crypto.createHash('sha256').update(recepient+Date.now()).digest('hex').substring(0, 50);;
+    const unsub = `https://main.d6j42zwh06pm8.amplifyapp.com/unsubscribe.html?token=${code}`;
     this._sendTemplateEmail(recepient, 'welcome',
-      JSON.stringify({"official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/"})
+      JSON.stringify({"official_url": "https://main.d6j42zwh06pm8.amplifyapp.com/",
+        "unsubscribe": unsub
+      }), unsub
     );
+    const emailObj = await this.findBundleEmails(recepient);
+    if(emailObj) {
+      let active = 0;
+      if(emailObj.active === 0) {
+        active = 1;
+      }
+      this.updateBundleEmails(recepient, active, code);
+    } else {
+      const email = new Emails();
+      email.account = account;
+      email.email = recepient;
+      email.code = code;
+      await this.insertManyEmails([email]);
+    }
+  }
+
+  async unsubscribe(recepient: string, code: string) {
+    const emailObj = await this.findBundleEmails(recepient);
+    if(emailObj) {
+      if(emailObj.code === code && emailObj.active === 1) {
+        await this.updateBundleEmails(recepient, 0, code);
+      } else {
+        return {
+          code: 400,
+          msg: 'code error'
+        }
+      }
+    }
+    return {
+      code: 200,
+      msg: 'ok'
+    };
   }
   
-  async _sendTemplateEmail(recepient: string, template: string, data: string = "{}") {
+  async _sendTemplateEmail(recepient: string, template: string, data: string = "{}", unsub: string = '') {
     const sendEmailCommand = createSendTemplatedEmailCommand(
       recepient,
       "Jungle <official@jungle.exchange>",
-      template, data
+      template, data, unsub
     );
   
     try {

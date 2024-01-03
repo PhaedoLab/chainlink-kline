@@ -89,11 +89,11 @@ export class GraphService {
       this.totalData.set(Hist.TRADER, hist.ttraders);
       this.totalData.set(Hist.FEE, hist.tfee);
     } else {
-      const oneHour = 60 * 60; // 1小时的毫秒数
+      const oneHour = 60 * 60; // 1小时的秒数
       const now = Math.round(Date.now() / 1000);
-      const startTimestamp = 1691061265;
+      const startTimestamp = 1690882369;
       
-      let currentTimestamp = Math.round(startTimestamp / oneHour) * oneHour; // 精确到小时
+      let currentTimestamp = Math.floor(startTimestamp / oneHour) * oneHour; // 精确到小时
       while (currentTimestamp < now) {
         const nextTimestamp = currentTimestamp + oneHour;
         await this.calcuHistograms(currentTimestamp, nextTimestamp);
@@ -409,7 +409,7 @@ export class GraphService {
     const result = await execute(myQuery, {})
     const tvls = result.data?.tvls;
     if(tvls && tvls.length > 0) {
-      return tvls[0].amount.toString();
+      return (tvls[0].amount).toString();
     }
     return 0;
   }
@@ -645,7 +645,8 @@ export class GraphService {
         }
       }
 
-      const remain = BigInt(totalTrade?.totalVal) + BigInt(liquidation.collateral) - BigInt(liquidation.debt) - BigInt(totalTrade.fee);
+      let remain = BigInt(totalTrade?.totalVal) + BigInt(liquidation.collateral) - BigInt(liquidation.debt) - BigInt(totalTrade.fee);
+      remain = remain <= 0? BigInt(0): remain;
       const pnl = BigInt(totalTrade?.pnl) + BigInt(totalTrade.fee);
       console.log(`hash: ${liquidation.hash}`);
       resLiquidations.push({
@@ -1499,6 +1500,7 @@ export class GraphService {
           'tradingfee': tradingfee,
           'remain': remain.toString(),
           'collateral': liqui.collateral,
+          'hash': liqui.hash,
           synths,
           'snapshot': {
             'adebt': liqui.debt,
@@ -1553,6 +1555,7 @@ export class GraphService {
           'type': trade.typet === 3? 'close': 'open',
           'size': this.divDecimal(trade.totalVal),
           'tradingfee': trade.fee,
+          'hash': trade.hash,
           synths
         });
       }

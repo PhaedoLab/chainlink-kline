@@ -57,7 +57,7 @@ try:
             'HtmlPart': content
         }
     )
-    # print(response)
+    print(response)
 
     # content = open('emailt/verify.html').read()
     # response = client.create_template(
@@ -157,7 +157,7 @@ try:
     for template in templates['TemplatesMetadata']:
         name = template['Name']
         print(name)
-    #     client.delete_template(TemplateName=name)
+        # client.delete_template(TemplateName='welcome')
     
 # Display an error if something goes wrong.	
 except ClientError as e:
